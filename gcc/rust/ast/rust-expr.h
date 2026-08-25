@@ -3934,6 +3934,107 @@ protected:
   }
 };
 
+// Yield expression AST node representation
+class YieldExpr : public ExprWithoutBlock
+{
+  std::vector<Attribute> outer_attrs;
+  tl::optional<std::unique_ptr<Expr>> yield_expr;
+  location_t locus;
+
+  // TODO: find another way to store this to save memory?
+  bool marked_for_strip = false;
+
+public:
+  std::string as_string () const override;
+
+  /* Returns whether the object has an expression returned (i.e. not void return
+   * type). */
+  bool has_yielded_expr () const { return yield_expr.has_value (); }
+
+  // Constructor for YieldExpr.
+  YieldExpr (tl::optional<std::unique_ptr<Expr>> yielded_expr,
+	     std::vector<Attribute> outer_attribs, location_t locus)
+    : outer_attrs (std::move (outer_attribs)),
+      yield_expr (std::move (yielded_expr)), locus (locus)
+  {}
+
+  // Copy constructor with clone
+  YieldExpr (YieldExpr const &other)
+    : ExprWithoutBlock (other), outer_attrs (other.outer_attrs),
+      locus (other.locus), marked_for_strip (other.marked_for_strip)
+  {
+    // guard to protect from null pointer dereference
+    if (other.yield_expr)
+      yield_expr = other.yield_expr.value ()->clone_expr ();
+  }
+
+  // Overloaded assignment operator to clone return_expr pointer
+  YieldExpr &operator= (YieldExpr const &other)
+  {
+    ExprWithoutBlock::operator= (other);
+    locus = other.locus;
+    marked_for_strip = other.marked_for_strip;
+    outer_attrs = other.outer_attrs;
+
+    // guard to protect from null pointer dereference
+    if (other.yield_expr)
+      yield_expr = other.yield_expr.value ()->clone_expr ();
+    else
+      yield_expr = tl::nullopt;
+
+    return *this;
+  }
+
+  // move constructors
+  YieldExpr (YieldExpr &&other) = default;
+  YieldExpr &operator= (YieldExpr &&other) = default;
+
+  location_t get_locus () const override final { return locus; }
+
+  void accept_vis (ASTVisitor &vis) override;
+
+  // Can't think of any invalid invariants, so store boolean.
+  void mark_for_strip () override { marked_for_strip = true; }
+  bool is_marked_for_strip () const override { return marked_for_strip; }
+
+  // TODO: is this better? Or is a "vis_block" better?
+  Expr &get_yielded_expr ()
+  {
+    rust_assert (yield_expr);
+    return *yield_expr.value ();
+  }
+
+  const Expr &get_yielded_expr () const
+  {
+    rust_assert (yield_expr);
+    return *yield_expr.value ();
+  }
+
+  std::unique_ptr<Expr> &get_yielded_expr_ptr ()
+  {
+    rust_assert (yield_expr);
+    return yield_expr.value ();
+  }
+
+  const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
+
+  void set_outer_attrs (std::vector<Attribute> new_attrs) override
+  {
+    outer_attrs = std::move (new_attrs);
+  }
+
+  Expr::Kind get_expr_kind () const override { return Expr::Kind::Yield; }
+
+protected:
+  /* Use covariance to implement clone function as returning this object rather
+   * than base */
+  YieldExpr *clone_expr_without_block_impl () const override
+  {
+    return new YieldExpr (*this);
+  }
+};
+
 // Try expression AST node representation
 class TryExpr : public ExprWithBlock
 {

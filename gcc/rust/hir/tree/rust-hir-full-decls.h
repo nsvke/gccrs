@@ -107,6 +107,7 @@ class RangeFullExpr;
 class RangeToInclExpr;
 class BoxExpr;
 class ReturnExpr;
+class YieldExpr;
 class UnsafeBlockExpr;
 class LoopLabel;
 class BaseLoopExpr;

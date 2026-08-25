@@ -114,6 +114,7 @@ private:
   virtual void visit (RangeToInclExpr &expr) override;
   virtual void visit (BoxExpr &expr) override;
   virtual void visit (ReturnExpr &expr) override;
+  virtual void visit (YieldExpr &expr) override;
   virtual void visit (UnsafeBlockExpr &expr) override;
   virtual void visit (LoopExpr &expr) override;
   virtual void visit (WhileLoopExpr &expr) override;

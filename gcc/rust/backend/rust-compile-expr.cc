@@ -305,6 +305,13 @@ CompileExpr::visit (HIR::ReturnExpr &expr)
 }
 
 void
+CompileExpr::visit (HIR::YieldExpr &expr)
+{
+  rust_sorry_at (expr.get_locus (), "yield expr backend is not implemented");
+  rust_assert (false);
+}
+
+void
 CompileExpr::visit (HIR::ArithmeticOrLogicalExpr &expr)
 {
   auto op = expr.get_expr_type ();

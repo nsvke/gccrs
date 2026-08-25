@@ -40,6 +40,7 @@ public:
   void visit (HIR::TupleIndexExpr &expr) override;
   void visit (HIR::TupleExpr &expr) override;
   void visit (HIR::ReturnExpr &expr) override;
+  void visit (HIR::YieldExpr &expr) override;
   void visit (HIR::CallExpr &expr) override;
   void visit (HIR::MethodCallExpr &expr) override;
   void visit (HIR::AssignmentExpr &expr) override;

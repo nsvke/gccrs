@@ -157,6 +157,7 @@ private:
   virtual void visit (RangeToInclExpr &) override;
   virtual void visit (BoxExpr &) override;
   virtual void visit (ReturnExpr &) override;
+  virtual void visit (YieldExpr &) override;
   virtual void visit (UnsafeBlockExpr &) override;
   virtual void visit (LoopExpr &) override;
   virtual void visit (WhileLoopExpr &) override;

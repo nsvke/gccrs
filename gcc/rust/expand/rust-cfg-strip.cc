@@ -1354,6 +1354,36 @@ CfgStrip::visit (AST::ReturnExpr &expr)
    * can't do this either. */
 }
 void
+CfgStrip::visit (AST::YieldExpr &expr)
+{
+  // initial strip test based on outer attrs
+  expand_cfg_attrs (expr.get_outer_attrs ());
+  if (fails_cfg_with_expand (expr.get_outer_attrs ()))
+    {
+      expr.mark_for_strip ();
+      return;
+    }
+
+  AST::DefaultASTVisitor::visit (expr);
+
+  /* spec does not say that you can have outer attributes on
+   * expression, so assuming you can't. stripping for sub-expressions
+   * is the only thing that can be done */
+  if (expr.has_yielded_expr ())
+    {
+      auto &yielded_expr = expr.get_yielded_expr ();
+      if (yielded_expr.is_marked_for_strip ())
+	rust_error_at (yielded_expr.get_locus (),
+		       "cannot strip expression in this position - outer "
+		       "attributes not allowed");
+    }
+  /* TODO: conceptually, you would maybe be able to remove a returned
+   * expr - e.g. if you had conditional compilation returning void or
+   * returning a type. On the other hand, I think that function
+   * return type cannot be conditionally compiled, so I assumed you
+   * can't do this either. */
+}
+void
 CfgStrip::visit (AST::UnsafeBlockExpr &expr)
 {
   // initial strip test based on outer attrs

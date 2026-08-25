@@ -350,6 +350,13 @@ PatternChecker::visit (ReturnExpr &expr)
 }
 
 void
+PatternChecker::visit (YieldExpr &expr)
+{
+  if (expr.has_yield_expr ())
+    expr.get_expr ().accept_vis (*this);
+}
+
+void
 PatternChecker::visit (UnsafeBlockExpr &expr)
 {
   expr.get_block_expr ().accept_vis (*this);

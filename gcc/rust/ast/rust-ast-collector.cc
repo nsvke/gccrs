@@ -1573,6 +1573,16 @@ TokenCollector::visit (ReturnExpr &expr)
 }
 
 void
+TokenCollector::visit (YieldExpr &expr)
+{
+  describe_node (std::string ("YieldExpr"), [this, &expr] () {
+    push (Rust::Token::make (YIELD, expr.get_locus ()));
+    if (expr.has_yielded_expr ())
+      visit (expr.get_yielded_expr ());
+  });
+}
+
+void
 TokenCollector::visit (TryExpr &expr)
 {
   push (Rust::Token::make (TRY, expr.get_locus ()));

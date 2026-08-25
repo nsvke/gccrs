@@ -566,6 +566,14 @@ DefaultASTVisitor::visit (AST::ReturnExpr &expr)
 }
 
 void
+DefaultASTVisitor::visit (AST::YieldExpr &expr)
+{
+  visit_outer_attrs (expr);
+  if (expr.has_yielded_expr ())
+    visit (expr.get_yielded_expr ());
+}
+
+void
 DefaultASTVisitor::visit (AST::TryExpr &expr)
 {
   visit_outer_attrs (expr);

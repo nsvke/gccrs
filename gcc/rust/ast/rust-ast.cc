@@ -1674,6 +1674,20 @@ ReturnExpr::as_string () const
 }
 
 std::string
+YieldExpr::as_string () const
+{
+  /* TODO: find way to incorporate outer attrs - may have to represent in
+   * different style (i.e. something more like BorrowExpr: \n outer attrs) */
+
+  std::string str ("yield ");
+
+  if (has_yielded_expr ())
+    str += get_yielded_expr ().as_string ();
+
+  return str;
+}
+
+std::string
 TryExpr::as_string () const
 {
   /* TODO: find way to incorporate outer attrs - may have to represent in
@@ -4594,6 +4608,12 @@ RangeToInclExpr::accept_vis (ASTVisitor &vis)
 
 void
 ReturnExpr::accept_vis (ASTVisitor &vis)
+{
+  vis.visit (*this);
+}
+
+void
+YieldExpr::accept_vis (ASTVisitor &vis)
 {
   vis.visit (*this);
 }

@@ -1001,6 +1001,31 @@ ReturnExpr::operator= (ReturnExpr const &other)
   return *this;
 }
 
+YieldExpr::YieldExpr (Analysis::NodeMapping mappings, location_t locus,
+		      std::unique_ptr<Expr> yielded_expr,
+		      AST::AttrVec outer_attribs)
+  : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
+    yield_expr (std::move (yielded_expr)), locus (locus)
+{}
+
+YieldExpr::YieldExpr (YieldExpr const &other)
+  : ExprWithoutBlock (other), locus (other.locus)
+{
+  // guard to protect from null pointer dereference
+  if (other.yield_expr != nullptr)
+    yield_expr = other.yield_expr->clone_expr ();
+}
+
+YieldExpr &
+YieldExpr::operator= (YieldExpr const &other)
+{
+  ExprWithoutBlock::operator= (other);
+  yield_expr = other.yield_expr->clone_expr ();
+  locus = other.locus;
+
+  return *this;
+}
+
 UnsafeBlockExpr::UnsafeBlockExpr (Analysis::NodeMapping mappings,
 				  std::unique_ptr<BlockExpr> block_expr,
 				  AST::AttrVec outer_attribs, location_t locus)

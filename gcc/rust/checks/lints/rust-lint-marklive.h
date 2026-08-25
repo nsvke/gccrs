@@ -150,6 +150,12 @@ public:
       expr.get_expr ().accept_vis (*this);
   }
 
+  void visit (HIR::YieldExpr &expr) override
+  {
+    if (expr.has_yield_expr ())
+      expr.get_expr ().accept_vis (*this);
+  }
+
   void visit (HIR::WhileLetLoopExpr &expr) override
   {
     expr.get_loop_block ().accept_vis (*this);
@@ -288,7 +294,7 @@ private:
   MarkLive (std::vector<HirId> worklist)
     : worklist (worklist), mappings (Analysis::Mappings::get ()),
       resolver (Resolver2_0::FinalizedNameResolutionContext::get ()),
-      tyctx (Resolver::TypeCheckContext::get ()){};
+      tyctx (Resolver::TypeCheckContext::get ()) {};
 
   void mark_hir_id (HirId);
   bool visit_path_segment (HIR::PathExprSegment);

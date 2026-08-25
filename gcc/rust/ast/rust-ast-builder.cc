@@ -357,6 +357,12 @@ Builder::return_expr (std::unique_ptr<Expr> &&to_return)
     new ReturnExpr (std::move (to_return), {}, loc));
 }
 
+std::unique_ptr<Expr>
+Builder::yield_expr (std::unique_ptr<Expr> &&to_return)
+{
+  return std::unique_ptr<Expr> (new YieldExpr (std::move (to_return), {}, loc));
+}
+
 std::unique_ptr<Stmt>
 Builder::let (std::unique_ptr<Pattern> &&pattern, std::unique_ptr<Type> &&type,
 	      std::unique_ptr<Expr> &&init) const

@@ -454,6 +454,14 @@ PointerVisitor::visit (AST::ReturnExpr &expr)
 }
 
 void
+PointerVisitor::visit (AST::YieldExpr &expr)
+{
+  visit_outer_attrs (expr);
+  if (expr.has_yielded_expr ())
+    reseat (expr.get_yielded_expr_ptr ());
+}
+
+void
 PointerVisitor::visit (AST::TryExpr &expr)
 {
   visit_outer_attrs (expr);

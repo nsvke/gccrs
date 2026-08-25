@@ -111,6 +111,7 @@ private:
   void visit (AST::RangeFromToInclExpr &expr) override;
   void visit (AST::RangeToInclExpr &expr) override;
   void visit (AST::ReturnExpr &expr) override;
+  void visit (AST::YieldExpr &expr) override;
   void visit (AST::LoopExpr &expr) override;
   void visit (AST::WhileLoopExpr &expr) override;
   void visit (AST::WhileLetLoopExpr &expr) override;

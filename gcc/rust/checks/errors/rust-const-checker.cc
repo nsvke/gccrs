@@ -479,6 +479,13 @@ ConstChecker::visit (ReturnExpr &expr)
 }
 
 void
+ConstChecker::visit (YieldExpr &expr)
+{
+  if (expr.has_yield_expr ())
+    expr.get_expr ().accept_vis (*this);
+}
+
+void
 ConstChecker::visit (UnsafeBlockExpr &expr)
 {
   expr.get_block_expr ().accept_vis (*this);

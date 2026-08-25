@@ -632,6 +632,13 @@ UnsafeChecker::visit (ReturnExpr &expr)
 }
 
 void
+UnsafeChecker::visit (YieldExpr &expr)
+{
+  if (expr.has_yield_expr ())
+    expr.get_expr ().accept_vis (*this);
+}
+
+void
 UnsafeChecker::visit (UnsafeBlockExpr &expr)
 {
   auto id = expr.get_mappings ().get_hirid ();

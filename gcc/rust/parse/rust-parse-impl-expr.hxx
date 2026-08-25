@@ -456,6 +456,30 @@ Parser<ManagedTokenSource>::parse_return_expr (AST::AttrVec outer_attrs,
 					    std::move (outer_attrs), locus);
 }
 
+template <typename ManagedTokenSource>
+tl::expected<std::unique_ptr<AST::YieldExpr>, Parse::Error::Node>
+Parser<ManagedTokenSource>::parse_yield_expr (AST::AttrVec outer_attrs,
+					      location_t pratt_parsed_loc)
+{
+  location_t locus = pratt_parsed_loc;
+  if (locus == UNKNOWN_LOCATION)
+    {
+      locus = lexer.peek_token ()->get_locus ();
+      skip_token (YIELD);
+    }
+
+  // parse expression to return, if it exists
+  ParseRestrictions restrictions;
+  restrictions.expr_can_be_null = true;
+  auto yielded_expr = parse_expr (AST::AttrVec (), restrictions);
+  tl::optional<std::unique_ptr<AST::Expr>> expr = tl::nullopt;
+  if (yielded_expr)
+    expr = std::move (yielded_expr.value ());
+
+  return std::make_unique<AST::YieldExpr> (std::move (expr),
+					   std::move (outer_attrs), locus);
+}
+
 // Parses a try expression.
 template <typename ManagedTokenSource>
 tl::expected<std::unique_ptr<AST::TryExpr>, Parse::Error::Node>
@@ -2388,6 +2412,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
     case OR:
     case PIPE:
     case MOVE:
+    case STATIC_KW:
       // closure expression
       {
 	auto ret = parse_closure_expr_pratt (tok, std::move (outer_attrs));
@@ -2423,6 +2448,17 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
       {
 	auto ret
 	  = parse_return_expr (std::move (outer_attrs), tok->get_locus ());
+	if (ret)
+	  return std::move (ret.value ());
+	else
+	  return tl::unexpected<Parse::Error::Expr> (
+	    Parse::Error::Expr::CHILD_ERROR);
+      }
+    case YIELD:
+      // FIXME: is this really a null denotation expression?
+      {
+	auto ret
+	  = parse_yield_expr (std::move (outer_attrs), tok->get_locus ());
 	if (ret)
 	  return std::move (ret.value ());
 	else
@@ -4119,7 +4155,8 @@ Parser<ManagedTokenSource>::parse_struct_expr_struct_partial (
 	    auto field = parse_struct_expr_field ();
 	    if (!field)
 	      {
-		if (field.error () == Parse::Error::StructExprField::STRUCT_BASE)
+		if (field.error ()
+		    == Parse::Error::StructExprField::STRUCT_BASE)
 		  break;
 		if (field.error ()
 		    == Parse::Error::StructExprField::STRUCT_BASE_ATTRIBUTES)

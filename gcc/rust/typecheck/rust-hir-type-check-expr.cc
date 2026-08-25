@@ -286,6 +286,45 @@ TypeCheckExpr::visit (HIR::ReturnExpr &expr)
 }
 
 void
+TypeCheckExpr::visit (HIR::YieldExpr &expr)
+{
+  // if (!context->have_generator_context ())
+  //   {
+  //     rust_error_at (expr.get_locus (), ErrorCode::E0627,
+		//      "yield expression outside of generator literal");
+  //     infered = new TyTy::ErrorType (expr.get_mappings ().get_hirid ());
+  //     return;
+  //   }
+
+  // auto yield_tyty = context->peek_yield_type ();
+  // location_t expr_locus = expr.has_return_expr ()
+		// 	    ? expr.get_expr ().get_locus ()
+		// 	    : expr.get_locus ();
+  // TyTy::BaseType *expr_ty;
+  // if (expr.has_return_expr ())
+  //   {
+  //     context->push_expected_type (yield_tyty);
+  //     expr_ty = TypeCheckExpr::Resolve (expr.get_expr ());
+  //     context->pop_expected_type ();
+  //   }
+  // else
+  //   expr_ty = TyTy::TupleType::get_unit_type ();
+
+  // TyTy::BaseType *unified_ty
+  //   = coercion_site (expr.get_mappings ().get_hirid (),
+		//      TyTy::TyWithLocation (yield_tyty),
+		//      TyTy::TyWithLocation (expr_ty, expr_locus),
+		//      expr.get_locus ());
+
+  // context->pop_yield_type ();
+  // context->push_yield_type (context->peek_context (), unified_ty);
+
+  // infered = TyTy::TupleType::get_unit_type ();
+  rust_sorry_at(expr.get_locus(), "typecheck yield");
+  rust_assert(false);
+}
+
+void
 TypeCheckExpr::visit (HIR::CallExpr &expr)
 {
   TyTy::BaseType *function_tyty = TypeCheckExpr::Resolve (expr.get_fnexpr ());

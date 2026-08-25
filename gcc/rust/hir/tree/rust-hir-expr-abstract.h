@@ -64,6 +64,7 @@ public:
     Break,
     Range,
     Return,
+    Yield,
     UnsafeBlock,
     BaseLoop,
     If,

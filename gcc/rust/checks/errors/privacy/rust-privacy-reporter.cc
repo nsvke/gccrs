@@ -595,6 +595,13 @@ PrivacyReporter::visit (HIR::ReturnExpr &expr)
 }
 
 void
+PrivacyReporter::visit (HIR::YieldExpr &expr)
+{
+  if (expr.has_expr ())
+    expr.get_expr ().accept_vis (*this);
+}
+
+void
 PrivacyReporter::visit (HIR::UnsafeBlockExpr &expr)
 {
   expr.get_block_expr ().accept_vis (*this);

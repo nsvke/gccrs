@@ -116,6 +116,7 @@ public:
   void visit (HIR::RangeToInclExpr &expr) override {}
   void visit (HIR::BoxExpr &expr) override {}
   void visit (HIR::ReturnExpr &expr) override {}
+  void visit (HIR::YieldExpr &expr) override {}
   void visit (HIR::UnsafeBlockExpr &expr) override {}
   void visit (HIR::LoopExpr &expr) override {}
   void visit (HIR::WhileLoopExpr &expr) override {}

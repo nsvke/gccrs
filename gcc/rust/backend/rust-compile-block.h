@@ -95,6 +95,7 @@ public:
   void visit (HIR::RangeToInclExpr &) override {}
   void visit (HIR::BoxExpr &) override {}
   void visit (HIR::ReturnExpr &) override {}
+  void visit (HIR::YieldExpr &) override {}
   void visit (HIR::UnsafeBlockExpr &) override {}
   void visit (HIR::LoopExpr &) override {}
   void visit (HIR::WhileLoopExpr &) override {}
@@ -185,6 +186,7 @@ public:
   void visit (HIR::RangeToInclExpr &) override {}
   void visit (HIR::BoxExpr &) override {}
   void visit (HIR::ReturnExpr &) override {}
+  void visit (HIR::YieldExpr &) override {}
   void visit (HIR::UnsafeBlockExpr &) override {}
   void visit (HIR::LoopExpr &) override {}
   void visit (HIR::WhileLoopExpr &) override {}

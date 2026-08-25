@@ -522,6 +522,22 @@ ExprStmtBuilder::visit (HIR::ReturnExpr &ret)
 }
 
 void
+ExprStmtBuilder::visit (HIR::YieldExpr &yield)
+{
+  // TODO: fix here!
+  if (yield.has_yield_expr ())
+    {
+      push_assignment (RETURN_VALUE_PLACE,
+		       move_place (visit_expr (yield.get_expr ()),
+				   yield.get_expr ().get_locus ()),
+		       yield.get_expr ().get_locus ());
+    }
+  unwind_until (ROOT_SCOPE);
+  push_return (yield.get_locus ());
+  translated = INVALID_PLACE;
+}
+
+void
 ExprStmtBuilder::visit (HIR::UnsafeBlockExpr &expr)
 {
   rust_sorry_at (expr.get_locus (), "unsafe blocks are not supported");

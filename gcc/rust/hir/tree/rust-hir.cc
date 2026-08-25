@@ -1331,6 +1331,19 @@ ReturnExpr::to_string () const
 }
 
 std::string
+YieldExpr::to_string () const
+{
+  std::string str ("yield ");
+
+  if (has_yield_expr ())
+    {
+      str += yield_expr->to_string ();
+    }
+
+  return str;
+}
+
+std::string
 GroupedExpr::to_string () const
 {
   std::string str ("Grouped expr:");
@@ -4265,6 +4278,12 @@ ReturnExpr::accept_vis (HIRFullVisitor &vis)
 }
 
 void
+YieldExpr::accept_vis (HIRFullVisitor &vis)
+{
+  vis.visit (*this);
+}
+
+void
 UnsafeBlockExpr::accept_vis (HIRFullVisitor &vis)
 {
   vis.visit (*this);
@@ -5142,6 +5161,12 @@ BoxExpr::accept_vis (HIRExpressionVisitor &vis)
 
 void
 ReturnExpr::accept_vis (HIRExpressionVisitor &vis)
+{
+  vis.visit (*this);
+}
+
+void
+YieldExpr::accept_vis (HIRExpressionVisitor &vis)
 {
   vis.visit (*this);
 }

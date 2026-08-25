@@ -96,6 +96,7 @@ protected: // Expr
   void visit (HIR::RangeToInclExpr &expr) override;
   void visit (HIR::BoxExpr &expr) override;
   void visit (HIR::ReturnExpr &ret) override;
+  void visit (HIR::YieldExpr &ret) override;
   void visit (HIR::UnsafeBlockExpr &expr) override;
   void visit (HIR::LoopExpr &expr) override;
   void visit (HIR::WhileLoopExpr &expr) override;

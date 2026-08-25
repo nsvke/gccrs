@@ -792,6 +792,9 @@ private:
   tl::expected<std::unique_ptr<AST::ReturnExpr>, Parse::Error::Node>
   parse_return_expr (AST::AttrVec outer_attrs = AST::AttrVec (),
 		     location_t pratt_parsed_loc = UNKNOWN_LOCATION);
+  tl::expected<std::unique_ptr<AST::YieldExpr>, Parse::Error::Node>
+  parse_yield_expr (AST::AttrVec outer_attrs = AST::AttrVec (),
+		    location_t pratt_parsed_loc = UNKNOWN_LOCATION);
   tl::expected<std::unique_ptr<AST::TryExpr>, Parse::Error::Node>
   parse_try_expr (AST::AttrVec outer_attrs = AST::AttrVec (),
 		  location_t pratt_parsed_loc = UNKNOWN_LOCATION);

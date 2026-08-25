@@ -1213,6 +1213,7 @@ public:
     Range,
     Box,
     Return,
+    Yield,
     UnsafeBlock,
     Loop,
     If,

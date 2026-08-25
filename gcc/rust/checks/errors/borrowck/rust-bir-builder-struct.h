@@ -146,6 +146,7 @@ protected:
   void visit (HIR::RangeToInclExpr &expr) override { rust_unreachable (); }
   void visit (HIR::BoxExpr &expr) override { rust_unreachable (); }
   void visit (HIR::ReturnExpr &expr) override { rust_unreachable (); }
+  void visit (HIR::YieldExpr &expr) override { rust_unreachable (); }
   void visit (HIR::UnsafeBlockExpr &expr) override { rust_unreachable (); }
   void visit (HIR::LoopExpr &expr) override { rust_unreachable (); }
   void visit (HIR::WhileLoopExpr &expr) override { rust_unreachable (); }

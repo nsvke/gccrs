@@ -336,6 +336,7 @@ public:
   void visit (RangeFromToInclExpr &expr);
   void visit (RangeToInclExpr &expr);
   void visit (ReturnExpr &expr);
+  void visit (YieldExpr &expr);
   void visit (TryExpr &expr);
   void visit (BoxExpr &expr);
   void visit (UnsafeBlockExpr &expr);

@@ -1426,6 +1426,18 @@ Dump::visit (ReturnExpr &e)
 }
 
 void
+Dump::visit (YieldExpr &e)
+{
+  begin ("YieldExpr");
+  do_mappings (e.get_mappings ());
+
+  if (e.has_yield_expr ())
+    visit_field ("yield_expr", e.get_expr ());
+
+  end ("YieldExpr");
+}
+
+void
 Dump::visit (UnsafeBlockExpr &e)
 {
   begin ("UnsafeBlockExpr");

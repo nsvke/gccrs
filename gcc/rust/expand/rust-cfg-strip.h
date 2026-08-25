@@ -127,6 +127,7 @@ public:
   void visit (AST::RangeFromToInclExpr &expr) override;
   void visit (AST::RangeToInclExpr &expr) override;
   void visit (AST::ReturnExpr &expr) override;
+  void visit (AST::YieldExpr &expr) override;
   void visit (AST::UnsafeBlockExpr &expr) override;
   void visit (AST::LoopExpr &expr) override;
   void visit (AST::WhileLoopExpr &expr) override;

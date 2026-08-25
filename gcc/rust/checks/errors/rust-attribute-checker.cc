@@ -332,6 +332,10 @@ AttributeChecker::visit (AST::ReturnExpr &)
 {}
 
 void
+AttributeChecker::visit (AST::YieldExpr &)
+{}
+
+void
 AttributeChecker::visit (AST::LoopExpr &)
 {}
 

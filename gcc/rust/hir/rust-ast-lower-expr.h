@@ -90,6 +90,7 @@ public:
   void visit (AST::QualifiedPathInExpression &expr) override;
   void visit (AST::BoxExpr &expr) override;
   void visit (AST::ReturnExpr &expr) override;
+  void visit (AST::YieldExpr &expr) override;
   void visit (AST::CallExpr &expr) override;
   void visit (AST::MethodCallExpr &expr) override;
   void visit (AST::AssignmentExpr &expr) override;

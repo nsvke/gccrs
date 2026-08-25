@@ -444,6 +444,14 @@ DefaultHIRVisitor::walk (ReturnExpr &expr)
 }
 
 void
+DefaultHIRVisitor::walk (YieldExpr &expr)
+{
+  visit_outer_attrs (expr);
+  if (expr.has_yield_expr ())
+    expr.get_expr ().accept_vis (*this);
+}
+
+void
 DefaultHIRVisitor::walk (UnsafeBlockExpr &expr)
 {
   visit_outer_attrs (expr);

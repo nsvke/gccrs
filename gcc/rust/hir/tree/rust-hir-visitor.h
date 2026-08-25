@@ -77,6 +77,7 @@ public:
   virtual void visit (RangeToInclExpr &expr) = 0;
   virtual void visit (BoxExpr &expr) = 0;
   virtual void visit (ReturnExpr &expr) = 0;
+  virtual void visit (YieldExpr &expr) = 0;
   virtual void visit (UnsafeBlockExpr &expr) = 0;
   virtual void visit (LoopExpr &expr) = 0;
   virtual void visit (WhileLoopExpr &expr) = 0;
@@ -246,6 +247,7 @@ public:
   virtual void visit (RangeToInclExpr &node) override { walk (node); }
   virtual void visit (BoxExpr &node) override { walk (node); }
   virtual void visit (ReturnExpr &node) override { walk (node); }
+  virtual void visit (YieldExpr &node) override { walk (node); }
   virtual void visit (UnsafeBlockExpr &node) override { walk (node); }
   virtual void visit (LoopExpr &node) override { walk (node); }
   virtual void visit (WhileLoopExpr &node) override { walk (node); }
@@ -387,6 +389,7 @@ protected:
   virtual void walk (RangeToInclExpr &) final;
   virtual void walk (BoxExpr &) final;
   virtual void walk (ReturnExpr &) final;
+  virtual void walk (YieldExpr &) final;
   virtual void walk (UnsafeBlockExpr &) final;
   virtual void walk (LoopExpr &) final;
   virtual void walk (WhileLoopExpr &) final;
@@ -528,6 +531,7 @@ public:
   virtual void visit (RangeToInclExpr &) override {}
   virtual void visit (BoxExpr &) override {}
   virtual void visit (ReturnExpr &) override {}
+  virtual void visit (YieldExpr &) override {}
   virtual void visit (UnsafeBlockExpr &) override {}
   virtual void visit (LoopExpr &) override {}
   virtual void visit (WhileLoopExpr &) override {}
@@ -760,6 +764,7 @@ public:
   virtual void visit (RangeToInclExpr &expr) = 0;
   virtual void visit (BoxExpr &expr) = 0;
   virtual void visit (ReturnExpr &expr) = 0;
+  virtual void visit (YieldExpr &expr) = 0;
   virtual void visit (UnsafeBlockExpr &expr) = 0;
   virtual void visit (LoopExpr &expr) = 0;
   virtual void visit (WhileLoopExpr &expr) = 0;

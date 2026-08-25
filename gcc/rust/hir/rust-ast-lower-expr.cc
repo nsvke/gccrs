@@ -222,6 +222,24 @@ ASTLoweringExpr::visit (AST::ReturnExpr &expr)
 }
 
 void
+ASTLoweringExpr::visit (AST::YieldExpr &expr)
+{
+  terminated = true;
+  HIR::Expr *yield_expr
+    = expr.has_yielded_expr ()
+	? ASTLoweringExpr::translate (expr.get_yielded_expr ())
+	: nullptr;
+
+  auto crate_num = mappings.get_current_crate ();
+  Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
+				 mappings.get_next_hir_id (crate_num),
+				 UNKNOWN_LOCAL_DEFID);
+
+  translated = new HIR::YieldExpr (mapping, expr.get_locus (),
+				   std::unique_ptr<HIR::Expr> (yield_expr));
+}
+
+void
 ASTLoweringExpr::visit (AST::CallExpr &expr)
 {
   HIR::Expr *func = ASTLoweringExpr::translate (expr.get_function_expr ());

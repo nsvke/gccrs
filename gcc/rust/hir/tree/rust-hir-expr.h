@@ -720,7 +720,7 @@ public:
     COPIED,
   };
 
-  ArrayElems (Analysis::NodeMapping mappings) : mappings (mappings){};
+  ArrayElems (Analysis::NodeMapping mappings) : mappings (mappings) {};
 
   virtual ~ArrayElems () {}
 
@@ -2321,6 +2321,61 @@ protected:
   ReturnExpr *clone_expr_without_block_impl () const override
   {
     return new ReturnExpr (*this);
+  }
+};
+
+// Yield expression HIR node representation
+class YieldExpr : public ExprWithoutBlock
+{
+public:
+  std::unique_ptr<Expr> yield_expr;
+
+  location_t locus;
+
+  std::string to_string () const override;
+
+  /* Returns whether the object has an expression returned (i.e. not void return
+   * type). */
+  bool has_yield_expr () const { return yield_expr != nullptr; }
+
+  // Constructor for YieldExpr.
+  YieldExpr (Analysis::NodeMapping mappings, location_t locus,
+	     std::unique_ptr<Expr> yielded_expr = nullptr,
+	     AST::AttrVec outer_attribs = AST::AttrVec ());
+
+  // Copy constructor with clone
+  YieldExpr (YieldExpr const &other);
+
+  // Overloaded assignment operator to clone return_expr pointer
+  YieldExpr &operator= (YieldExpr const &other);
+
+  // move constructors
+  YieldExpr (YieldExpr &&other) = default;
+  YieldExpr &operator= (YieldExpr &&other) = default;
+
+  location_t get_locus () const override final { return locus; }
+
+  void accept_vis (HIRFullVisitor &vis) override;
+  void accept_vis (HIRExpressionVisitor &vis) override;
+
+  bool has_expr () { return yield_expr != nullptr; }
+  Expr &get_expr () { return *yield_expr; }
+
+  ExprType get_expression_type () const override final
+  {
+    return ExprType::Yield;
+  }
+
+protected:
+  /* Use covariance to implement clone function as returning this object rather
+   * than base */
+  YieldExpr *clone_expr_impl () const override { return new YieldExpr (*this); }
+
+  /* Use covariance to implement clone function as returning this object rather
+   * than base */
+  YieldExpr *clone_expr_without_block_impl () const override
+  {
+    return new YieldExpr (*this);
   }
 };
 
