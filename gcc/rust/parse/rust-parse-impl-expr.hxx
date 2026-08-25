@@ -178,12 +178,19 @@ tl::expected<std::unique_ptr<AST::ClosureExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_closure_expr (AST::AttrVec outer_attrs)
 {
   location_t locus = lexer.peek_token ()->get_locus ();
-  // detect optional "move"
-  bool has_move = false;
+  // detect optional "move" and "static"
+  AST::CaptureBy capture_clause = AST::CaptureBy::Ref;
+  AST::Movability movability = AST::Movability::Movable;
+
+  if (lexer.peek_token ()->get_id () == STATIC_KW)
+    {
+      lexer.skip_token ();
+      movability = AST::Movability::Static;
+    }
   if (lexer.peek_token ()->get_id () == MOVE)
     {
       lexer.skip_token ();
-      has_move = true;
+      capture_clause = AST::CaptureBy::Value;
     }
 
   // handle parameter list
@@ -274,10 +281,9 @@ Parser<ManagedTokenSource>::parse_closure_expr (AST::AttrVec outer_attrs)
 	}
 
       return std::unique_ptr<AST::ClosureExprInnerTyped> (
-	new AST::ClosureExprInnerTyped (std::move (type),
-					std::move (block.value ()),
-					std::move (params), locus, has_move,
-					std::move (outer_attrs)));
+	new AST::ClosureExprInnerTyped (
+	  std::move (type), std::move (block.value ()), std::move (params),
+	  locus, capture_clause, movability, std::move (outer_attrs)));
     }
   else
     {
@@ -298,8 +304,8 @@ Parser<ManagedTokenSource>::parse_closure_expr (AST::AttrVec outer_attrs)
 
       return std::unique_ptr<AST::ClosureExprInner> (
 	new AST::ClosureExprInner (std::move (expr.value ()),
-				   std::move (params), locus, has_move,
-				   std::move (outer_attrs)));
+				   std::move (params), locus, capture_clause,
+				   movability, std::move (outer_attrs)));
     }
 }
 
@@ -4320,10 +4326,19 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (const_TokenPtr tok,
   // TODO: does this need pratt parsing (for precedence)? probably not, but
   // idk
   location_t locus = tok->get_locus ();
-  bool has_move = false;
+  AST::CaptureBy capture_clause = AST::CaptureBy::Ref;
+  AST::Movability movability = AST::Movability::Movable;
+
+  if (tok->get_id () == STATIC_KW)
+    {
+      movability = AST::Movability::Static;
+      tok = lexer.peek_token ();
+      lexer.skip_token ();
+      // skip token and reassign
+    }
   if (tok->get_id () == MOVE)
     {
-      has_move = true;
+      capture_clause = AST::CaptureBy::Value;
       tok = lexer.peek_token ();
       lexer.skip_token ();
       // skip token and reassign
@@ -4427,7 +4442,7 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (const_TokenPtr tok,
 
       return std::make_unique<AST::ClosureExprInnerTyped> (
 	std::move (type), std::move (block.value ()), std::move (params), locus,
-	has_move, std::move (outer_attrs));
+	capture_clause, movability, std::move (outer_attrs));
     }
   else
     {
@@ -4448,7 +4463,8 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (const_TokenPtr tok,
 
       return std::make_unique<AST::ClosureExprInner> (std::move (expr.value ()),
 						      std::move (params), locus,
-						      has_move,
+						      capture_clause,
+						      movability,
 						      std::move (outer_attrs));
     }
 }

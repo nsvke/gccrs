@@ -2590,19 +2590,41 @@ public:
   location_t get_locus () const { return locus; }
 };
 
+// A capture clause used in closures and `async` blocks.
+enum class CaptureBy
+{
+  // `move |x| y + x`.
+  Value,
+  // `move` keyword was not specified.
+  Ref,
+};
+
+// The movability of a generator / closure literal:
+// whether a generator contains self-references, causing it to be `!Unpin`.
+enum class Movability
+{
+  // May contain self-references, `!Unpin`.
+  Static,
+  // Must not contain self-references, `Unpin`.
+  Movable,
+};
+
 // Base closure definition expression AST node - abstract
 class ClosureExpr : public ExprWithoutBlock
 {
   std::vector<Attribute> outer_attrs;
-  bool has_move;
+  CaptureBy capture_clause;
+  Movability movability;
   std::vector<ClosureParam> params; // may be empty
   location_t locus;
 
 protected:
-  ClosureExpr (std::vector<ClosureParam> closure_params, bool has_move,
+  ClosureExpr (std::vector<ClosureParam> closure_params,
+	       CaptureBy capture_clause, Movability movability,
 	       std::vector<Attribute> outer_attribs, location_t locus)
-    : outer_attrs (std::move (outer_attribs)), has_move (has_move),
-      params (std::move (closure_params)), locus (locus)
+    : outer_attrs (std::move (outer_attribs)), capture_clause (capture_clause),
+      movability (movability), params (std::move (closure_params)),
+      locus (locus)
   {}
 
 public:
@@ -2622,8 +2644,8 @@ public:
     outer_attrs = std::move (new_attrs);
   }
 
-  bool get_has_move () const { return has_move; }
-
+  CaptureBy get_capture_clause () const { return capture_clause; }
+  Movability get_movability () const { return movability; }
   Expr::Kind get_expr_kind () const override { return Expr::Kind::Closure; }
 
   virtual Expr &get_definition_expr () = 0;
@@ -2641,10 +2663,11 @@ public:
   // Constructor for a ClosureExprInner
   ClosureExprInner (std::unique_ptr<Expr> closure_inner_expr,
 		    std::vector<ClosureParam> closure_params, location_t locus,
-		    bool is_move = false,
+		    CaptureBy capture_clause = CaptureBy::Ref,
+		    Movability movability = Movability::Movable,
 		    std::vector<Attribute> outer_attribs
 		    = std::vector<Attribute> ())
-    : ClosureExpr (std::move (closure_params), is_move,
+    : ClosureExpr (std::move (closure_params), capture_clause, movability,
 		   std::move (outer_attribs), locus),
       closure_inner (std::move (closure_inner_expr))
   {}
@@ -3039,10 +3062,12 @@ public:
   ClosureExprInnerTyped (std::unique_ptr<Type> closure_return_type,
 			 std::unique_ptr<BlockExpr> closure_expr,
 			 std::vector<ClosureParam> closure_params,
-			 location_t locus, bool is_move = false,
+			 location_t locus,
+			 CaptureBy capture_clause = CaptureBy::Ref,
+			 Movability movability = Movability::Movable,
 			 std::vector<Attribute> outer_attribs
 			 = std::vector<Attribute> ())
-    : ClosureExpr (std::move (closure_params), is_move,
+    : ClosureExpr (std::move (closure_params), capture_clause, movability,
 		   std::move (outer_attribs), locus),
       return_type (std::move (closure_return_type)),
       expr (std::move (closure_expr))

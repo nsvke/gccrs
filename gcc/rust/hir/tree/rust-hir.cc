@@ -1224,7 +1224,27 @@ std::string
 ClosureExpr::to_string () const
 {
   std::string str ("ClosureExpr:\n Has move: ");
-  if (has_move)
+  if (capture_clause == AST::CaptureBy::Value)
+    {
+      str += "true";
+    }
+  else
+    {
+      str += "false";
+    }
+
+  str += "\n Is generator: ";
+  if (movability.has_value ())
+    {
+      str += "true";
+    }
+  else
+    {
+      str += "false";
+    }
+
+  str += "\n Is static: ";
+  if (movability.has_value () && movability.value () == AST::Movability::Static)
     {
       str += "true";
     }

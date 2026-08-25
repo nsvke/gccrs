@@ -26,6 +26,7 @@
 #include "rust-ast.h"
 #include "rust-builtin-ast-nodes.h"
 #include "rust-diagnostics.h"
+#include "rust-expr.h"
 #include "rust-hir-map.h"
 #include "rust-system.h"
 #include "tree/rust-hir-expr.h"
@@ -840,6 +841,31 @@ ASTLoweringExpr::visit (AST::RangeFromToInclExpr &expr)
 			 expr.get_locus ());
 }
 
+static tl::optional<AST::Movability>
+generator_movability_for_fn (AST::ClosureExpr &expr)
+{
+  AST::ContainsYieldASTVisitor yield_scanner;
+  expr.get_definition_expr ().accept_vis (yield_scanner);
+  if (yield_scanner.has_yield ())
+    {
+      // with async support, we will have different generator types but
+      // now we have only 1 generator kind
+      if (expr.get_params ().size () > 1)
+	rust_error_at (
+	  expr.get_locus (), ErrorCode::E0628,
+	  "too many parameters for a generator (expected 0 or 1 parameters)");
+
+      return expr.get_movability ();
+    }
+
+  if (expr.get_movability () == AST::Movability::Static)
+    {
+      rust_error_at (expr.get_locus (), ErrorCode::E0697,
+		     "closures cannot be static");
+    }
+  return tl::nullopt;
+}
+
 void
 ASTLoweringExpr::visit (AST::ClosureExprInner &expr)
 {
@@ -857,12 +883,14 @@ ASTLoweringExpr::visit (AST::ClosureExprInner &expr)
 				 mappings.get_next_hir_id (crate_num),
 				 mappings.get_next_localdef_id (crate_num));
 
+  auto generator_option = generator_movability_for_fn (expr);
+
   translated
     = new HIR::ClosureExpr (mapping, std::move (closure_params),
 			    nullptr /* closure_return_type */,
 			    std::unique_ptr<HIR::Expr> (closure_expr),
-			    expr.get_has_move (), expr.get_outer_attrs (),
-			    expr.get_locus ());
+			    expr.get_capture_clause (), generator_option,
+			    expr.get_outer_attrs (), expr.get_locus ());
 }
 
 void
@@ -883,12 +911,14 @@ ASTLoweringExpr::visit (AST::ClosureExprInnerTyped &expr)
 				 mappings.get_next_hir_id (crate_num),
 				 mappings.get_next_localdef_id (crate_num));
 
+  auto generator_option = generator_movability_for_fn (expr);
+
   translated
     = new HIR::ClosureExpr (mapping, std::move (closure_params),
 			    std::unique_ptr<HIR::Type> (closure_return_type),
 			    std::unique_ptr<HIR::Expr> (closure_expr),
-			    expr.get_has_move (), expr.get_outer_attrs (),
-			    expr.get_locus ());
+			    expr.get_capture_clause (), generator_option,
+			    expr.get_outer_attrs (), expr.get_locus ());
 }
 
 HIR::InlineAsmOperand

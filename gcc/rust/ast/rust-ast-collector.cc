@@ -1397,7 +1397,11 @@ void
 TokenCollector::visit_closure_common (ClosureExpr &expr)
 {
   describe_node (std::string ("ClosureExpr"), [this, &expr] () {
-    if (expr.get_has_move ())
+    if (expr.get_movability () == AST::Movability::Static)
+      {
+	push (Rust::Token::make (STATIC_KW, expr.get_locus ()));
+      }
+    if (expr.get_capture_clause () == AST::CaptureBy::Value)
       {
 	push (Rust::Token::make (MOVE, expr.get_locus ()));
       }

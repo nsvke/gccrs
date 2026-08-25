@@ -1578,7 +1578,13 @@ ClosureExpr::as_string () const
   str += append_attributes (outer_attrs, OUTER);
 
   str += "\n Has move: ";
-  if (has_move)
+  if (capture_clause == AST::CaptureBy::Value)
+    str += "true";
+  else
+    str += "false";
+
+  str += "\n Is static: ";
+  if (movability == AST::Movability::Static)
     str += "true";
   else
     str += "false";

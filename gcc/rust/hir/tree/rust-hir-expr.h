@@ -1644,7 +1644,8 @@ public:
 class ClosureExpr : public ExprWithoutBlock
 {
 private:
-  bool has_move;
+  AST::CaptureBy capture_clause;
+  tl::optional<AST::Movability> movability;
   std::vector<ClosureParam> params;
   location_t locus;
   std::unique_ptr<Type> return_type;
@@ -1654,7 +1655,9 @@ public:
   ClosureExpr (Analysis::NodeMapping mappings,
 	       std::vector<ClosureParam> closure_params,
 	       std::unique_ptr<Type> closure_return_type,
-	       std::unique_ptr<Expr> closure_expr, bool has_move,
+	       std::unique_ptr<Expr> closure_expr,
+	       AST::CaptureBy capture_clause,
+	       tl::optional<AST::Movability> movability,
 	       AST::AttrVec outer_attribs, location_t locus);
 
   // Copy constructor requires cloning
@@ -1676,7 +1679,8 @@ public:
     return ExprType::Closure;
   }
 
-  bool get_has_move () const { return has_move; }
+  AST::CaptureBy get_capture_clause () const { return capture_clause; }
+  tl::optional<AST::Movability> get_movability () const { return movability; }
 
   bool has_return_type () const { return return_type != nullptr; }
 

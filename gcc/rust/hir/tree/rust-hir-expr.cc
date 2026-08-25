@@ -530,10 +530,11 @@ StructExprStructFields::StructExprStructFields (
 StructExprStructFields::StructExprStructFields (
   StructExprStructFields const &other)
   : StructExprStruct (other),
-    struct_base (other.has_struct_base ()
-		   ? tl::optional<std::unique_ptr<StructBase>> (
-		     std::make_unique<StructBase> (*other.struct_base.value ()))
-		   : tl::nullopt),
+    struct_base (
+      other.has_struct_base ()
+	? tl::optional<std::unique_ptr<StructBase>> (
+	    std::make_unique<StructBase> (*other.struct_base.value ()))
+	: tl::nullopt),
     union_index (other.union_index)
 {
   fields.reserve (other.fields.size ());
@@ -545,10 +546,11 @@ StructExprStructFields &
 StructExprStructFields::operator= (StructExprStructFields const &other)
 {
   StructExprStruct::operator= (other);
-  struct_base = other.has_struct_base ()
-		  ? tl::optional<std::unique_ptr<StructBase>> (
-		    std::make_unique<StructBase> (*other.struct_base.value ()))
-		  : tl::nullopt;
+  struct_base
+    = other.has_struct_base ()
+	? tl::optional<std::unique_ptr<StructBase>> (
+	    std::make_unique<StructBase> (*other.struct_base.value ()))
+	: tl::nullopt;
   union_index = other.union_index;
 
   fields.reserve (other.fields.size ());
@@ -698,10 +700,13 @@ ClosureParam::operator= (ClosureParam const &other)
 ClosureExpr::ClosureExpr (Analysis::NodeMapping mappings,
 			  std::vector<ClosureParam> closure_params,
 			  std::unique_ptr<Type> closure_return_type,
-			  std::unique_ptr<Expr> closure_expr, bool has_move,
+			  std::unique_ptr<Expr> closure_expr,
+			  AST::CaptureBy capture_clause,
+			  tl::optional<AST::Movability> movability,
 			  AST::AttrVec outer_attribs, location_t locus)
   : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
-    has_move (has_move), params (std::move (closure_params)), locus (locus),
+    capture_clause (capture_clause), movability (movability),
+    params (std::move (closure_params)), locus (locus),
     return_type (std::move (closure_return_type)),
     expr (std::move (closure_expr))
 {}
@@ -713,7 +718,8 @@ ClosureExpr::ClosureExpr (ClosureExpr const &other)
     = other.has_return_type () ? other.return_type->clone_type () : nullptr;
   expr = other.expr->clone_expr ();
   params = other.params;
-  has_move = other.has_move;
+  capture_clause = other.capture_clause;
+  movability = other.movability;
 }
 
 ClosureExpr &
@@ -724,7 +730,8 @@ ClosureExpr::operator= (ClosureExpr const &other)
     = other.has_return_type () ? other.return_type->clone_type () : nullptr;
   expr = other.expr->clone_expr ();
   params = other.params;
-  has_move = other.has_move;
+  capture_clause = other.capture_clause;
+  movability = other.movability;
 
   return *this;
 }
