@@ -20,6 +20,7 @@
 #define RUST_TYTY
 
 #include "optional.h"
+#include "rust-expr.h"
 #include "rust-hir-map.h"
 #include "rust-common.h"
 #include "rust-identifier.h"
@@ -43,6 +44,7 @@ class AssociatedImplTrait;
 
 namespace TyTy {
 class ClosureType;
+class GeneratorType;
 class FnPtr;
 class FnType;
 class CallableTypeInterface;
@@ -75,6 +77,7 @@ enum TypeKind
   PROJECTION,
   DYNAMIC,
   CLOSURE,
+  GENERATOR,
   OPAQUE,
   // there are more to add...
   ERROR
@@ -1370,6 +1373,102 @@ private:
   std::set<NodeId> captures;
 };
 
+class GeneratorType : public CallableTypeInterface, public SubstitutionRef
+{
+public:
+  static constexpr auto KIND = TypeKind::GENERATOR;
+
+  GeneratorType (HirId ref, DefId id, RustIdent ident, TupleType *parameters,
+		 TyVar result_type, TyVar yield_type,
+		 AST::CaptureBy capture_clause, AST::Movability movability,
+		 std::vector<SubstitutionParamMapping> subst_refs,
+		 std::set<NodeId> captures,
+		 std::set<HirId> refs = std::set<HirId> (),
+		 std::vector<TypeBoundPredicate> specified_bounds
+		 = std::vector<TypeBoundPredicate> ())
+    : CallableTypeInterface (ref, ref, TypeKind::GENERATOR, ident, refs),
+      SubstitutionRef (std::move (subst_refs),
+		       SubstitutionArgumentMappings::error (),
+		       {}), // TODO: check region constraints
+      parameters (parameters), result_type (std::move (result_type)),
+      yield_type (std::move (yield_type)),
+      capture_clause (std::move (capture_clause)),
+      movability (std::move (movability)), id (id), captures (captures)
+  {
+    LocalDefId local_def_id = id.localDefId;
+    rust_assert (local_def_id != UNKNOWN_LOCAL_DEFID);
+    inherit_bounds (specified_bounds);
+  }
+
+  GeneratorType (HirId ref, HirId ty_ref, RustIdent ident, DefId id,
+		 TupleType *parameters, TyVar result_type, TyVar yield_type,
+		 AST::CaptureBy capture_clause, AST::Movability movability,
+		 std::vector<SubstitutionParamMapping> subst_refs,
+		 std::set<NodeId> captures,
+		 std::set<HirId> refs = std::set<HirId> (),
+		 std::vector<TypeBoundPredicate> specified_bounds
+		 = std::vector<TypeBoundPredicate> ())
+    : CallableTypeInterface (ref, ty_ref, TypeKind::GENERATOR, ident, refs),
+      SubstitutionRef (std::move (subst_refs),
+		       SubstitutionArgumentMappings::error (), {}), // TODO
+      parameters (parameters), result_type (std::move (result_type)),
+      yield_type (std::move (yield_type)),
+      capture_clause (std::move (capture_clause)),
+      movability (std::move (movability)), id (id), captures (captures)
+  {
+    LocalDefId local_def_id = id.localDefId;
+    rust_assert (local_def_id != UNKNOWN_LOCAL_DEFID);
+    inherit_bounds (specified_bounds);
+  }
+
+  void accept_vis (TyVisitor &vis) override;
+  void accept_vis (TyConstVisitor &vis) const override;
+
+  WARN_UNUSED_RESULT size_t get_num_params () const override
+  {
+    return parameters->num_fields ();
+  }
+
+  WARN_UNUSED_RESULT BaseType *get_param_type_at (size_t index) const override
+  {
+    return parameters->get_field (index);
+  }
+
+  WARN_UNUSED_RESULT BaseType *get_return_type () const override
+  {
+    return result_type.get_tyty ();
+  }
+
+  std::string as_string () const override;
+  std::string get_name () const override final { return as_string (); }
+
+  bool is_equal (const BaseType &other) const override;
+
+  BaseType *clone () const final override;
+
+  GeneratorType *handle_substitions (
+    SubstitutionArgumentMappings &subst_mappings) override final;
+
+  TyTy::TupleType &get_parameters () const { return *parameters; }
+  TyTy::BaseType &get_result_type () const { return *result_type.get_tyty (); }
+  TyTy::BaseType &get_yield_type () const { return *yield_type.get_tyty (); }
+
+  DefId get_def_id () const { return id; }
+
+  const std::set<NodeId> &get_captures () const { return captures; }
+  AST::Movability get_movability () const { return movability; }
+  AST::CaptureBy get_capture_clause () const { return capture_clause; }
+
+private:
+  TyTy::TupleType *parameters;
+  TyVar result_type;
+  TyVar yield_type;
+  AST::CaptureBy capture_clause;
+  AST::Movability movability;
+  DefId id;
+  std::set<NodeId> captures;
+};
+
 class ArrayType : public BaseType
 {
 public:
@@ -1908,6 +2007,7 @@ WARN_UNUSED_RESULT inline bool
 BaseType::is<CallableTypeInterface> () const
 {
   auto kind = this->get_kind ();
+  // TODO: is GENERATOR callable?
   return kind == FNPTR || kind == FNDEF || kind == CLOSURE;
 }
 
@@ -1923,8 +2023,8 @@ WARN_UNUSED_RESULT inline bool
 BaseType::is<SubstitutionRef> () const
 {
   auto kind = this->get_kind ();
-  return kind == FNPTR || kind == FNDEF || kind == CLOSURE || kind == ADT
-	 || kind == PROJECTION;
+  return kind == FNPTR || kind == FNDEF || kind == CLOSURE || kind == GENERATOR
+	 || kind == ADT || kind == PROJECTION;
 }
 
 template <>
@@ -1945,6 +2045,8 @@ BaseType::as<SubstitutionRef> ()
       return static_cast<FnType *> (this);
     case CLOSURE:
       return static_cast<ClosureType *> (this);
+    case GENERATOR:
+      return static_cast<GeneratorType *> (this);
     case ADT:
       return static_cast<ADTType *> (this);
     case PROJECTION:
@@ -1965,6 +2067,8 @@ BaseType::as<const SubstitutionRef> () const
       return static_cast<const FnType *> (this);
     case CLOSURE:
       return static_cast<const ClosureType *> (this);
+    case GENERATOR:
+      return static_cast<const GeneratorType *> (this);
     case ADT:
       return static_cast<const ADTType *> (this);
     case PROJECTION:

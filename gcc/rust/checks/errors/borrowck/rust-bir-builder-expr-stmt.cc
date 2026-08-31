@@ -532,8 +532,7 @@ ExprStmtBuilder::visit (HIR::YieldExpr &yield)
 				   yield.get_expr ().get_locus ()),
 		       yield.get_expr ().get_locus ());
     }
-  unwind_until (ROOT_SCOPE);
-  push_return (yield.get_locus ());
+  push_yield (yield.get_locus ());
   translated = INVALID_PLACE;
 }
 

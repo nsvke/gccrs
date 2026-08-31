@@ -174,6 +174,9 @@ protected:
   static tree named_constant_expression (tree type_tree,
 					 const std::string &name,
 					 tree const_val, location_t location);
+
+  tree build_generator_state (bool is_complete, tree payload_val,
+			      location_t locus);
 };
 
 } // namespace Compile

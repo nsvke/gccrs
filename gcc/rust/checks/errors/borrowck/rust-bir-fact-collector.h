@@ -286,6 +286,11 @@ protected: // Main collection entry points (for different categories).
 	  issue_place_access (stmt.get_place ());
 	  break;
 	}
+      case Statement::Kind::YIELD:
+	{
+	  // TODO: not handled yet
+	  break;
+	}
       }
   }
 
@@ -826,6 +831,7 @@ protected: // Subset helpers.
       case TyTy::NEVER:
       case TyTy::DYNAMIC:
       case TyTy::CLOSURE:
+      case TyTy::GENERATOR:
       case TyTy::ERROR:
 	return region_start;
       case TyTy::PLACEHOLDER:

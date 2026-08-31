@@ -60,6 +60,7 @@ public:
   void visit (const TyTy::ProjectionType &) override;
   void visit (const TyTy::DynamicObjectType &) override;
   void visit (const TyTy::ClosureType &) override;
+  void visit (const TyTy::GeneratorType &) override;
   void visit (const TyTy::OpaqueType &) override;
 
 public:

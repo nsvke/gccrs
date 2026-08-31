@@ -93,6 +93,8 @@ protected:
 			      TyTy::BaseType *rtype);
   TyTy::BaseType *expect_closure (TyTy::ClosureType *ltype,
 				  TyTy::BaseType *rtype);
+  TyTy::BaseType *expect_generator (TyTy::GeneratorType *ltype,
+				    TyTy::BaseType *rtype);
   TyTy::BaseType *expect_opaque (TyTy::OpaqueType *ltype,
 				 TyTy::BaseType *rtype);
   TyTy::BaseType *expect_const (TyTy::BaseConstType *ltype,

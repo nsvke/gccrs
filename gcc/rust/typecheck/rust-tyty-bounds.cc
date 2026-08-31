@@ -167,6 +167,11 @@ TypeBoundsProbe::assemble_marker_builtins ()
       assemble_builtin_candidate (LangItem::Kind::FN_MUT);
       break;
 
+    case TyTy::GENERATOR:
+      assemble_builtin_candidate (LangItem::Kind::SIZED);
+      assemble_builtin_candidate (LangItem::Kind::GENERATOR);
+      break;
+
       // FIXME str and slice need to be moved and test cases updated
     case TyTy::SLICE:
     case TyTy::STR:

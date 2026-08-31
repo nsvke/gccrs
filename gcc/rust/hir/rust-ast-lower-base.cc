@@ -866,8 +866,6 @@ warn_if_stub_lang_item (location_t locus, LangItem::Kind kind)
     case LangItem::Kind::POLL:
     case LangItem::Kind::READY:
     case LangItem::Kind::PENDING:
-    case LangItem::Kind::GENERATOR:
-    case LangItem::Kind::GENERATOR_STATE:
     case LangItem::Kind::MAYBE_UNINIT:
     case LangItem::Kind::BOX_FREE:
     case LangItem::Kind::DROP_IN_PLACE:

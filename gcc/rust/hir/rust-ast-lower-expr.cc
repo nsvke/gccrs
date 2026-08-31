@@ -225,7 +225,6 @@ ASTLoweringExpr::visit (AST::ReturnExpr &expr)
 void
 ASTLoweringExpr::visit (AST::YieldExpr &expr)
 {
-  terminated = true;
   HIR::Expr *yield_expr
     = expr.has_yielded_expr ()
 	? ASTLoweringExpr::translate (expr.get_yielded_expr ())

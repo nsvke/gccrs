@@ -318,6 +318,12 @@ SubstMapperInternal::visit (TyTy::ClosureType &type)
 }
 
 void
+SubstMapperInternal::visit (TyTy::GeneratorType &type)
+{
+  resolved = type.handle_substitions (mappings);
+}
+
+void
 SubstMapperInternal::visit (TyTy::ArrayType &type)
 {
   resolved = type.handle_substitions (mappings);
@@ -446,6 +452,15 @@ SubstMapperFromExisting::visit (TyTy::ClosureType &type)
   resolved = to_sub->handle_substitions (type.get_substitution_arguments ());
 }
 
+void
+SubstMapperFromExisting::visit (TyTy::GeneratorType &type)
+{
+  rust_assert (type.was_substituted ());
+
+  TyTy::GeneratorType *to_sub = static_cast<TyTy::GeneratorType *> (receiver);
+  resolved = to_sub->handle_substitions (type.get_substitution_arguments ());
+}
+
 // GetUsedSubstArgs
 
 GetUsedSubstArgs::GetUsedSubstArgs ()
@@ -474,6 +489,12 @@ GetUsedSubstArgs::visit (const TyTy::ADTType &type)
 
 void
 GetUsedSubstArgs::visit (const TyTy::ClosureType &type)
+{
+  args = type.get_substitution_arguments ();
+}
+
+void
+GetUsedSubstArgs::visit (const TyTy::GeneratorType &type)
 {
   args = type.get_substitution_arguments ();
 }

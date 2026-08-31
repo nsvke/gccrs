@@ -69,6 +69,7 @@ public:
   void visit (TyTy::NeverType &) override { rust_unreachable (); }
   void visit (TyTy::DynamicObjectType &) override { rust_unreachable (); }
   void visit (TyTy::ClosureType &) override { rust_unreachable (); }
+  void visit (TyTy::GeneratorType &) override { rust_unreachable (); }
   void visit (TyTy::OpaqueType &) override { rust_unreachable (); }
 
 private:
@@ -103,6 +104,7 @@ public:
   void visit (TyTy::PlaceholderType &type) override;
   void visit (TyTy::ProjectionType &type) override;
   void visit (TyTy::ClosureType &type) override;
+  void visit (TyTy::GeneratorType &type) override;
   void visit (TyTy::ArrayType &type) override;
   void visit (TyTy::SliceType &type) override;
   void visit (TyTy::InferType &type) override;
@@ -136,6 +138,7 @@ public:
   void visit (TyTy::FnType &type) override;
   void visit (TyTy::ADTType &type) override;
   void visit (TyTy::ClosureType &type) override;
+  void visit (TyTy::GeneratorType &type) override;
 
   void visit (TyTy::InferType &) override { rust_unreachable (); }
   void visit (TyTy::TupleType &) override { rust_unreachable (); }
@@ -180,6 +183,7 @@ public:
   void visit (const TyTy::FnType &type) override;
   void visit (const TyTy::ADTType &type) override;
   void visit (const TyTy::ClosureType &type) override;
+  void visit (const TyTy::GeneratorType &type) override;
 
   void visit (const TyTy::InferType &) override {}
   void visit (const TyTy::TupleType &) override {}

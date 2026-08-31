@@ -288,40 +288,37 @@ TypeCheckExpr::visit (HIR::ReturnExpr &expr)
 void
 TypeCheckExpr::visit (HIR::YieldExpr &expr)
 {
-  // if (!context->have_generator_context ())
-  //   {
-  //     rust_error_at (expr.get_locus (), ErrorCode::E0627,
-		//      "yield expression outside of generator literal");
-  //     infered = new TyTy::ErrorType (expr.get_mappings ().get_hirid ());
-  //     return;
-  //   }
+  if (!context->have_generator_context ())
+    {
+      rust_error_at (expr.get_locus (), ErrorCode::E0627,
+		     "yield expression outside of generator literal");
+      infered = new TyTy::ErrorType (expr.get_mappings ().get_hirid ());
+      return;
+    }
 
-  // auto yield_tyty = context->peek_yield_type ();
-  // location_t expr_locus = expr.has_return_expr ()
-		// 	    ? expr.get_expr ().get_locus ()
-		// 	    : expr.get_locus ();
-  // TyTy::BaseType *expr_ty;
-  // if (expr.has_return_expr ())
-  //   {
-  //     context->push_expected_type (yield_tyty);
-  //     expr_ty = TypeCheckExpr::Resolve (expr.get_expr ());
-  //     context->pop_expected_type ();
-  //   }
-  // else
-  //   expr_ty = TyTy::TupleType::get_unit_type ();
+  auto yield_tyty = context->peek_yield_type ();
+  location_t expr_locus
+    = expr.has_expr () ? expr.get_expr ().get_locus () : expr.get_locus ();
+  TyTy::BaseType *expr_ty;
+  if (expr.has_yield_expr ())
+    {
+      context->push_expected_type (yield_tyty);
+      expr_ty = TypeCheckExpr::Resolve (expr.get_expr ());
+      context->pop_expected_type ();
+    }
+  else
+    expr_ty = TyTy::TupleType::get_unit_type ();
 
-  // TyTy::BaseType *unified_ty
-  //   = coercion_site (expr.get_mappings ().get_hirid (),
-		//      TyTy::TyWithLocation (yield_tyty),
-		//      TyTy::TyWithLocation (expr_ty, expr_locus),
-		//      expr.get_locus ());
+  TyTy::BaseType *unified_ty
+    = coercion_site (expr.get_mappings ().get_hirid (),
+		     TyTy::TyWithLocation (yield_tyty),
+		     TyTy::TyWithLocation (expr_ty, expr_locus),
+		     expr.get_locus ());
 
-  // context->pop_yield_type ();
-  // context->push_yield_type (context->peek_context (), unified_ty);
+  context->pop_yield_type ();
+  context->push_yield_type (context->peek_context (), unified_ty);
 
-  // infered = TyTy::TupleType::get_unit_type ();
-  rust_sorry_at(expr.get_locus(), "typecheck yield");
-  rust_assert(false);
+  infered = context->peek_resume_type ();
 }
 
 void
@@ -1639,6 +1636,48 @@ TypeCheckExpr::visit (HIR::MethodCallExpr &expr)
 
   // return the result of the function back
   infered = function_ret_tyty;
+
+  // generator speacial-case
+  if (receiver_tyty->get_kind () == TyTy::TypeKind::GENERATOR
+      && expr.get_method_name ().to_string () == "resume")
+    {
+      TyTy::GeneratorType *gen_tyty
+	= static_cast<TyTy::GeneratorType *> (receiver_tyty);
+
+      DefId gen_state_defid
+	= mappings.lookup_lang_item (LangItem::Kind::GENERATOR_STATE).value ();
+      HIR::Item *gen_state_item
+	= mappings.lookup_defid (gen_state_defid).value ();
+
+      TyTy::BaseType *gen_state_raw = nullptr;
+      bool found = TypeCheckContext::get ()->lookup_type (
+	gen_state_item->get_mappings ().get_hirid (), &gen_state_raw);
+      rust_assert (found && gen_state_raw->get_kind () == TyTy::TypeKind::ADT);
+
+      TyTy::ADTType *gen_state_adt
+	= static_cast<TyTy::ADTType *> (gen_state_raw);
+
+      std::vector<TyTy::SubstitutionArg> subst_args;
+      subst_args.push_back (
+	TyTy::SubstitutionArg (&gen_state_adt->get_substs ().at (0),
+			       gen_tyty->get_yield_type ().clone ()));
+      subst_args.push_back (
+	TyTy::SubstitutionArg (&gen_state_adt->get_substs ().at (1),
+			       gen_tyty->get_result_type ().clone ()));
+
+      std::map<std::string, TyTy::BaseType *> empty_bindings;
+      TyTy::RegionParamList empty_regions (0);
+      TyTy::SubstitutionArgumentMappings mappings (std::move (subst_args),
+						   empty_bindings,
+						   empty_regions,
+						   expr.get_locus ());
+
+      TyTy::BaseType *concrete_gen_state
+	= gen_state_adt->handle_substitions (mappings);
+
+      infered = concrete_gen_state;
+      context->insert_type (expr.get_mappings (), concrete_gen_state);
+    }
 }
 
 void
@@ -1919,8 +1958,135 @@ TypeCheckExpr::visit (HIR::MatchExpr &expr)
 }
 
 void
+TypeCheckExpr::mk_generator (HIR::ClosureExpr &expr, HirId implicit_args_id)
+{
+  // rust_assert (false);
+  DefId generator_lang_item
+    = mappings.get_lang_item (LangItem::Kind::GENERATOR, expr.get_locus ());
+
+  HIR::Item *item = mappings.lookup_defid (generator_lang_item).value ();
+  rust_assert (item->get_item_kind () == HIR::Item::ItemKind::Trait);
+
+  HIR::Trait *trait_item = static_cast<HIR::Trait *> (item);
+  TraitReference *trait = TraitResolver::Resolve (*trait_item);
+  rust_assert (!trait->is_error ());
+
+  TyTy::TypeBoundPredicate predicate (*trait, BoundPolarity::RegularBound,
+				      expr.get_locus ());
+
+  HIR::GenericArgs args = HIR::GenericArgs::create_empty (expr.get_locus ());
+
+  if (expr.get_params ().empty ())
+    {
+      auto crate_num = mappings.get_current_crate ();
+      Analysis::NodeMapping mapping (crate_num,
+				     expr.get_mappings ().get_nodeid (),
+				     implicit_args_id, UNKNOWN_LOCAL_DEFID);
+      HIR::TupleType *implicit_tuple
+	= new HIR::TupleType (mapping, {}, expr.get_locus ());
+      args.get_type_args ().emplace_back (implicit_tuple);
+    }
+  else
+    {
+      HIR::Type *param_ty
+	= expr.get_params ().front ().get_type ().clone_type ().release ();
+      args.get_type_args ().emplace_back (param_ty);
+    }
+
+  predicate.apply_generic_arguments (&args, false, false);
+  infered->inherit_bounds ({predicate});
+}
+
+void
+TypeCheckExpr::mk_closure (HIR::ClosureExpr &expr, HirId implicit_args_id)
+{
+  // FIXME
+  // all closures automatically inherit the appropriate fn trait. Lets just
+  // assume FnOnce for now. I think this is based on the return type of the
+  // closure
+
+  LangItem::Kind lang_item_type = LangItem::Kind::FN_ONCE;
+
+  auto lang_item_defined = mappings.lookup_lang_item (lang_item_type);
+  if (!lang_item_defined)
+    {
+      // FIXME
+      // we need to have a unified way or error'ing when we are missing lang
+      // items that is useful
+      rust_fatal_error (expr.get_locus (), "unable to find lang item: %qs",
+			LangItem::ToString (lang_item_type).c_str ());
+    }
+  DefId &respective_lang_item_id = lang_item_defined.value ();
+
+  // these lang items are always traits
+  HIR::Item *item = mappings.lookup_defid (respective_lang_item_id).value ();
+  rust_assert (item->get_item_kind () == HIR::Item::ItemKind::Trait);
+  HIR::Trait *trait_item = static_cast<HIR::Trait *> (item);
+
+  TraitReference *trait = TraitResolver::Resolve (*trait_item);
+  rust_assert (!trait->is_error ());
+
+  TyTy::TypeBoundPredicate predicate (*trait, BoundPolarity::RegularBound,
+				      expr.get_locus ());
+
+  // resolve the trait bound where the <(Args)> are the parameter tuple type
+  HIR::GenericArgs args = HIR::GenericArgs::create_empty (expr.get_locus ());
+
+  // lets generate an implicit Type so that it resolves to the implict tuple
+  // type we have created
+  auto crate_num = mappings.get_current_crate ();
+  Analysis::NodeMapping mapping (crate_num, expr.get_mappings ().get_nodeid (),
+				 implicit_args_id, UNKNOWN_LOCAL_DEFID);
+  HIR::TupleType *implicit_tuple
+    = new HIR::TupleType (mapping,
+			  {} // we dont need to fill this out because it will
+			     // auto resolve because the hir id's match
+			  ,
+			  expr.get_locus ());
+  args.get_type_args ().emplace_back (implicit_tuple);
+
+  ///
+  Analysis::NodeMapping yield_mapping (crate_num, mappings.get_next_node_id (),
+				       mappings.get_next_hir_id (crate_num),
+				       UNKNOWN_LOCAL_DEFID);
+  HIR::Type *yield_inferred
+    = new HIR::InferredType (yield_mapping, expr.get_locus ());
+
+  args.get_binding_args ().emplace_back (
+    HIR::GenericArgsBinding (Identifier ("Yield"),
+			     std::unique_ptr<HIR::Type> (yield_inferred),
+			     expr.get_locus ()));
+
+  Analysis::NodeMapping return_mapping (crate_num, mappings.get_next_node_id (),
+					mappings.get_next_hir_id (crate_num),
+					UNKNOWN_LOCAL_DEFID);
+  HIR::Type *return_inferred
+    = new HIR::InferredType (return_mapping, expr.get_locus ());
+
+  args.get_binding_args ().emplace_back (
+    HIR::GenericArgsBinding (Identifier ("Return"),
+			     std::unique_ptr<HIR::Type> (return_inferred),
+			     expr.get_locus ()));
+  ///
+
+  // apply the arguments
+  predicate.apply_generic_arguments (&args, false, false);
+
+  // finally inherit the trait bound
+  infered->inherit_bounds ({predicate});
+}
+
+void
 TypeCheckExpr::visit (HIR::ClosureExpr &expr)
 {
+  if (expr.get_movability ().has_value ())
+    {
+      TyTy::TyVar yield_type
+	= TyTy::TyVar::get_implicit_infer_var (expr.get_locus ());
+      context->push_yield_type (context->peek_context (),
+				yield_type.get_tyty ());
+    }
+
   std::vector<TyTy::SubstitutionParamMapping> subst_refs;
   HirId ref = expr.get_mappings ().get_hirid ();
   DefId id = expr.get_mappings ().get_defid ();
@@ -1970,12 +2136,20 @@ TypeCheckExpr::visit (HIR::ClosureExpr &expr)
   TyTy::TyVar result_type
     = expr.has_return_type ()
 	? TyTy::TyVar (
-	  TypeCheckType::Resolve (expr.get_return_type ())->get_ref ())
+	    TypeCheckType::Resolve (expr.get_return_type ())->get_ref ())
 	: TyTy::TyVar::get_implicit_infer_var (expr.get_locus ());
+
+  context->push_return_type (context->peek_context (), result_type.get_tyty ());
+
+  if (expr.get_movability ().has_value ())
+    context->push_resume_type (context->peek_context (), closure_args);
 
   // resolve the block
   location_t closure_expr_locus = expr.get_expr ().get_locus ();
   TyTy::BaseType *closure_expr_ty = TypeCheckExpr::Resolve (expr.get_expr ());
+
+  context->pop_return_type ();
+
   coercion_site (expr.get_mappings ().get_hirid (),
 		 TyTy::TyWithLocation (result_type.get_tyty (),
 				       result_type_locus),
@@ -1994,59 +2168,22 @@ TypeCheckExpr::visit (HIR::ClosureExpr &expr)
     for (auto cap : opt_cap.value ())
       captures.insert (cap);
 
-  infered = new TyTy::ClosureType (ref, id, ident, closure_args, result_type,
-				   subst_refs, captures);
-
-  // FIXME
-  // all closures automatically inherit the appropriate fn trait. Lets just
-  // assume FnOnce for now. I think this is based on the return type of the
-  // closure
-
-  LangItem::Kind lang_item_type = LangItem::Kind::FN_ONCE;
-
-  auto lang_item_defined = mappings.lookup_lang_item (lang_item_type);
-  if (!lang_item_defined)
+  if (expr.get_movability ().has_value ())
     {
-      // FIXME
-      // we need to have a unified way or error'ing when we are missing lang
-      // items that is useful
-      rust_fatal_error (expr.get_locus (), "unable to find lang item: %qs",
-			LangItem::ToString (lang_item_type).c_str ());
+      infered = new TyTy::GeneratorType (
+	ref, id, ident, closure_args, result_type,
+	TyTy::TyVar (context->peek_yield_type ()->get_ref ()),
+	expr.get_capture_clause (), expr.get_movability ().value (), subst_refs,
+	captures);
+      mk_generator (expr, implicit_args_id);
     }
-  DefId &respective_lang_item_id = lang_item_defined.value ();
 
-  // these lang items are always traits
-  HIR::Item *item = mappings.lookup_defid (respective_lang_item_id).value ();
-  rust_assert (item->get_item_kind () == HIR::Item::ItemKind::Trait);
-  HIR::Trait *trait_item = static_cast<HIR::Trait *> (item);
-
-  TraitReference *trait = TraitResolver::Resolve (*trait_item);
-  rust_assert (!trait->is_error ());
-
-  TyTy::TypeBoundPredicate predicate (*trait, BoundPolarity::RegularBound,
-				      expr.get_locus ());
-
-  // resolve the trait bound where the <(Args)> are the parameter tuple type
-  HIR::GenericArgs args = HIR::GenericArgs::create_empty (expr.get_locus ());
-
-  // lets generate an implicit Type so that it resolves to the implict tuple
-  // type we have created
-  auto crate_num = mappings.get_current_crate ();
-  Analysis::NodeMapping mapping (crate_num, expr.get_mappings ().get_nodeid (),
-				 implicit_args_id, UNKNOWN_LOCAL_DEFID);
-  HIR::TupleType *implicit_tuple
-    = new HIR::TupleType (mapping,
-			  {} // we dont need to fill this out because it will
-			     // auto resolve because the hir id's match
-			  ,
-			  expr.get_locus ());
-  args.get_type_args ().emplace_back (implicit_tuple);
-
-  // apply the arguments
-  predicate.apply_generic_arguments (&args, false, false);
-
-  // finally inherit the trait bound
-  infered->inherit_bounds ({predicate});
+  else
+    {
+      infered = new TyTy::ClosureType (ref, id, ident, closure_args,
+				       result_type, subst_refs, captures);
+      mk_closure (expr, implicit_args_id);
+    }
 }
 
 bool

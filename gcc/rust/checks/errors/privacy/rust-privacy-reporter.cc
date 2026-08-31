@@ -252,6 +252,7 @@ PrivacyReporter::check_base_type_privacy (Analysis::NodeMapping &node_mappings,
 	  static_cast<const TyTy::ProjectionType *> (ty)->get ());
       }
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
       rust_sorry_at (locus, "privacy pass for closures is not handled yet");
       break;
 

@@ -449,6 +449,10 @@ UnifyRules::go ()
     case TyTy::CLOSURE:
       return expect_closure (static_cast<TyTy::ClosureType *> (ltype), rtype);
 
+    case TyTy::GENERATOR:
+      return expect_generator (static_cast<TyTy::GeneratorType *> (ltype),
+			       rtype);
+
     case TyTy::OPAQUE:
       return expect_opaque (static_cast<TyTy::OpaqueType *> (ltype), rtype);
 
@@ -551,6 +555,7 @@ UnifyRules::expect_inference_variable (TyTy::InferType *ltype,
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::CONST:
     case TyTy::OPAQUE:
       {
@@ -682,6 +687,7 @@ UnifyRules::expect_adt (TyTy::ADTType *ltype, TyTy::BaseType *rtype)
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::OPAQUE:
     case TyTy::CONST:
     case TyTy::ERROR:
@@ -729,6 +735,7 @@ UnifyRules::expect_str (TyTy::StrType *ltype, TyTy::BaseType *rtype)
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::OPAQUE:
     case TyTy::CONST:
     case TyTy::ERROR:
@@ -799,6 +806,7 @@ UnifyRules::expect_reference (TyTy::ReferenceType *ltype, TyTy::BaseType *rtype)
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::OPAQUE:
     case TyTy::CONST:
     case TyTy::ERROR:
@@ -869,6 +877,7 @@ UnifyRules::expect_pointer (TyTy::PointerType *ltype, TyTy::BaseType *rtype)
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::OPAQUE:
     case TyTy::CONST:
     case TyTy::ERROR:
@@ -934,6 +943,7 @@ UnifyRules::expect_param (TyTy::ParamType *ltype, TyTy::BaseType *rtype)
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::OPAQUE:
     case TyTy::CONST:
     case TyTy::ERROR:
@@ -1018,6 +1028,7 @@ UnifyRules::expect_array (TyTy::ArrayType *ltype, TyTy::BaseType *rtype)
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::OPAQUE:
     case TyTy::CONST:
     case TyTy::ERROR:
@@ -1074,6 +1085,7 @@ UnifyRules::expect_slice (TyTy::SliceType *ltype, TyTy::BaseType *rtype)
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::OPAQUE:
     case TyTy::CONST:
     case TyTy::ERROR:
@@ -1164,6 +1176,7 @@ UnifyRules::expect_fndef (TyTy::FnType *ltype, TyTy::BaseType *rtype)
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::OPAQUE:
     case TyTy::CONST:
     case TyTy::ERROR:
@@ -1344,6 +1357,7 @@ UnifyRules::expect_fnptr (TyTy::FnPtr *ltype, TyTy::BaseType *rtype)
     case TyTy::DYNAMIC:
     case TyTy::OPAQUE:
     case TyTy::CONST:
+    case TyTy::GENERATOR:
     case TyTy::ERROR:
       return unify_error_type_node ();
     }
@@ -1413,6 +1427,7 @@ UnifyRules::expect_tuple (TyTy::TupleType *ltype, TyTy::BaseType *rtype)
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::OPAQUE:
     case TyTy::CONST:
     case TyTy::ERROR:
@@ -1464,6 +1479,7 @@ UnifyRules::expect_bool (TyTy::BoolType *ltype, TyTy::BaseType *rtype)
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::OPAQUE:
     case TyTy::CONST:
     case TyTy::ERROR:
@@ -1515,6 +1531,7 @@ UnifyRules::expect_char (TyTy::CharType *ltype, TyTy::BaseType *rtype)
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::OPAQUE:
     case TyTy::CONST:
     case TyTy::ERROR:
@@ -1573,6 +1590,7 @@ UnifyRules::expect_int (TyTy::IntType *ltype, TyTy::BaseType *rtype)
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::OPAQUE:
     case TyTy::CONST:
     case TyTy::ERROR:
@@ -1631,6 +1649,7 @@ UnifyRules::expect_uint (TyTy::UintType *ltype, TyTy::BaseType *rtype)
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::OPAQUE:
     case TyTy::CONST:
     case TyTy::ERROR:
@@ -1689,6 +1708,7 @@ UnifyRules::expect_float (TyTy::FloatType *ltype, TyTy::BaseType *rtype)
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::OPAQUE:
     case TyTy::CONST:
     case TyTy::ERROR:
@@ -1740,6 +1760,7 @@ UnifyRules::expect_isize (TyTy::ISizeType *ltype, TyTy::BaseType *rtype)
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::OPAQUE:
     case TyTy::CONST:
     case TyTy::ERROR:
@@ -1791,6 +1812,7 @@ UnifyRules::expect_usize (TyTy::USizeType *ltype, TyTy::BaseType *rtype)
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::OPAQUE:
     case TyTy::CONST:
     case TyTy::ERROR:
@@ -1842,6 +1864,7 @@ UnifyRules::expect_placeholder (TyTy::PlaceholderType *ltype,
     case TyTy::PROJECTION:
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::SLICE:
     case TyTy::PARAM:
     case TyTy::POINTER:
@@ -1965,6 +1988,7 @@ UnifyRules::expect_projection (TyTy::ProjectionType *ltype,
 
     case TyTy::DYNAMIC:
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::SLICE:
     case TyTy::PARAM:
     case TyTy::POINTER:
@@ -2045,6 +2069,7 @@ UnifyRules::expect_dyn (TyTy::DynamicObjectType *ltype, TyTy::BaseType *rtype)
       break;
 
     case TyTy::CLOSURE:
+    case TyTy::GENERATOR:
     case TyTy::SLICE:
     case TyTy::PARAM:
     case TyTy::POINTER:
@@ -2116,6 +2141,80 @@ UnifyRules::expect_closure (TyTy::ClosureType *ltype, TyTy::BaseType *rtype)
       }
       break;
 
+    case TyTy::GENERATOR:
+    case TyTy::SLICE:
+    case TyTy::PARAM:
+    case TyTy::POINTER:
+    case TyTy::STR:
+    case TyTy::ADT:
+    case TyTy::REF:
+    case TyTy::ARRAY:
+    case TyTy::FNDEF:
+    case TyTy::FNPTR:
+    case TyTy::TUPLE:
+    case TyTy::BOOL:
+    case TyTy::CHAR:
+    case TyTy::INT:
+    case TyTy::UINT:
+    case TyTy::FLOAT:
+    case TyTy::USIZE:
+    case TyTy::ISIZE:
+    case TyTy::NEVER:
+    case TyTy::PLACEHOLDER:
+    case TyTy::PROJECTION:
+    case TyTy::DYNAMIC:
+    case TyTy::OPAQUE:
+    case TyTy::CONST:
+    case TyTy::ERROR:
+      return unify_error_type_node ();
+    }
+  return unify_error_type_node ();
+}
+
+TyTy::BaseType *
+UnifyRules::expect_generator (TyTy::GeneratorType *ltype, TyTy::BaseType *rtype)
+{
+  switch (rtype->get_kind ())
+    {
+    case TyTy::INFER:
+      {
+	TyTy::InferType *r = static_cast<TyTy::InferType *> (rtype);
+	bool is_valid
+	  = r->get_infer_kind () == TyTy::InferType::InferTypeKind::GENERAL;
+	if (is_valid)
+	  return ltype;
+      }
+      break;
+
+    case TyTy::GENERATOR:
+      {
+	TyTy::GeneratorType &type = *static_cast<TyTy::GeneratorType *> (rtype);
+	if (ltype->get_def_id () != type.get_def_id ())
+	  {
+	    return unify_error_type_node ();
+	  }
+
+	TyTy::BaseType *args_res
+	  = resolve_subtype (TyTy::TyWithLocation (&ltype->get_parameters ()),
+			     TyTy::TyWithLocation (&type.get_parameters ()));
+	if (args_res->get_kind () == TyTy::TypeKind::ERROR)
+	  {
+	    return unify_error_type_node ();
+	  }
+
+	TyTy::BaseType *res
+	  = resolve_subtype (TyTy::TyWithLocation (&ltype->get_result_type ()),
+			     TyTy::TyWithLocation (&type.get_result_type ()));
+	if (res == nullptr || res->get_kind () == TyTy::TypeKind::ERROR)
+	  {
+	    return unify_error_type_node ();
+	  }
+
+	return ltype;
+      }
+      break;
+
+    case TyTy::CLOSURE:
     case TyTy::SLICE:
     case TyTy::PARAM:
     case TyTy::POINTER:

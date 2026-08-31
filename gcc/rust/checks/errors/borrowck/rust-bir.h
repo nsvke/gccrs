@@ -89,6 +89,7 @@ public:
     SWITCH,		  // switch <place>
     RETURN,		  // return
     GOTO,		  // goto
+    YIELD,		  // yield
     DROP,		  // Drop(<place>)
     STORAGE_DEAD,	  // StorageDead(<place>)
     STORAGE_LIVE,	  // StorageLive(<place>)
@@ -127,6 +128,10 @@ public:
   static Statement make_return (location_t location)
   {
     return Statement (Kind::RETURN, INVALID_PLACE, nullptr, nullptr, location);
+  }
+  static Statement make_yield (location_t location)
+  {
+    return Statement (Kind::YIELD, INVALID_PLACE, nullptr, nullptr, location);
   }
   static Statement make_goto () { return Statement (Kind::GOTO); }
   static Statement make_drop (PlaceId place)
@@ -306,6 +311,7 @@ BasicBlock::is_terminated () const
     case Statement::Kind::GOTO:
     case Statement::Kind::RETURN:
     case Statement::Kind::SWITCH:
+    case Statement::Kind::YIELD:
       return true;
     case Statement::Kind::ASSIGNMENT:
       return statements.back ().get_expr ().get_kind () == ExprKind::CALL;

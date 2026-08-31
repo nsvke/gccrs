@@ -672,6 +672,43 @@ HIRCompileBase::indirect_expression (tree expr, location_t locus)
   return build_fold_indirect_ref_loc (locus, expr);
 }
 
+tree
+HIRCompileBase::build_generator_state (bool is_complete, tree payload_val,
+				       location_t locus)
+{
+  TyTy::ADTType *state_adt = ctx->peek_generator_info ().generator_state_adt;
+  tree compiled_adt = TyTyResolveCompile::compile (ctx, state_adt);
+
+  TyTy::VariantDef *target_variant = nullptr;
+  int union_discriminator = 0;
+  std::string variant_name = is_complete ? "Complete" : "Yielded";
+  for (auto variant : state_adt->get_variants ())
+    {
+      if ((variant->get_identifier) () == variant_name)
+	{
+	  target_variant = variant;
+	  break;
+	}
+      union_discriminator++;
+    }
+  rust_assert (target_variant != nullptr);
+
+  HIR::Expr &discrim_expr = target_variant->get_discriminant ();
+  tree discrim_expr_node = CompileExpr::Compile (discrim_expr, ctx);
+  tree qualifier = fold_expr (discrim_expr_node);
+
+  tree enum_root_fields = TYPE_FIELDS (compiled_adt);
+  tree payload_root = DECL_CHAIN (enum_root_fields);
+  std::vector<tree> arguments = {payload_val};
+  tree payload
+    = Backend::constructor_expression (TREE_TYPE (payload_root), true,
+				       arguments, union_discriminator, locus);
+
+  std::vector<tree> ctor_arguments = {qualifier, payload};
+  return Backend::constructor_expression (compiled_adt, 0, ctor_arguments, -1,
+					  locus);
+}
+
 void
 HIRCompileBase::compile_function_body (tree fndecl,
 				       HIR::BlockExpr &function_body,
@@ -694,7 +731,7 @@ HIRCompileBase::compile_function_body (tree fndecl,
 	= CompileExpr::Compile (function_body.get_final_expr (), ctx);
 
       // we can only return this if non unit value return type
-      if (!fn_return_ty->is_unit ())
+      if (!fn_return_ty->is_unit () || ctx->needs_generator_state ())
 	{
 	  HirId id = function_body.get_mappings ().get_hirid ();
 	  location_t lvalue_locus = function_body.get_locus ();
@@ -706,8 +743,23 @@ HIRCompileBase::compile_function_body (tree fndecl,
 	    function_body.expr->get_mappings ().get_hirid (), &actual);
 	  rust_assert (ok);
 
-	  return_value = coercion_site (id, return_value, actual, expected,
-					lvalue_locus, rvalue_locus);
+	  if (ctx->needs_generator_state ())
+	    {
+	      auto &info = ctx->peek_generator_info ();
+	      tree state_val = build_int_cst (TREE_TYPE (info.state_field_expr),
+					      info.curr_yield_count + 1);
+	      tree state_assign
+		= Backend::assignment_statement (info.state_field_expr,
+						 state_val, locus);
+	      ctx->add_statement (state_assign);
+
+	      return_value = build_generator_state (true, return_value, locus);
+	    }
+	  else
+	    {
+	      return_value = coercion_site (id, return_value, actual, expected,
+					    lvalue_locus, rvalue_locus);
+	    }
 
 	  /* Save the non-unit tail expression result before emitting scope
 	    drops, so a tail call like foo() is evaluated before locals are
@@ -745,16 +797,44 @@ HIRCompileBase::compile_function_body (tree fndecl,
 	  ctx->add_statement (return_stmt);
 	}
     }
-  else if (fn_return_ty->is_unit ())
+  else
     {
-      // we can only do this if the function is of unit type otherwise other
-      // errors should have occurred
-      location_t locus = function_body.get_locus ();
-      tree return_value = unit_expression (locus);
+      if (ctx->needs_generator_state ())
+	{
+	  location_t locus = function_body.get_locus ();
+	  auto &info = ctx->peek_generator_info ();
+	  tree state_val = build_int_cst (TREE_TYPE (info.state_field_expr),
+					  info.curr_yield_count + 1);
+	  tree state_assign
+	    = Backend::assignment_statement (info.state_field_expr, state_val,
+					     locus);
+	  ctx->add_statement (state_assign);
 
-      tree return_stmt
-	= Backend::return_statement (fndecl, return_value, locus);
-      ctx->add_statement (return_stmt);
+	  tree unit_expr = unit_expression (locus);
+	  tree return_value = build_generator_state (true, unit_expr, locus);
+
+	  fncontext fnctx = ctx->peek_fn ();
+	  tree result_reference
+	    = Backend::var_expression (fnctx.ret_addr, locus);
+	  tree assignment = Backend::assignment_statement (result_reference,
+							   return_value, locus);
+	  ctx->add_statement (assignment);
+
+	  tree return_stmt
+	    = Backend::return_statement (fndecl, result_reference, locus);
+	  ctx->add_statement (return_stmt);
+	}
+      else if (fn_return_ty->is_unit ())
+	{
+	  // we can only do this if the function is of unit type otherwise other
+	  // errors should have occurred
+	  location_t locus = function_body.get_locus ();
+	  tree return_value = unit_expression (locus);
+
+	  tree return_stmt
+	    = Backend::return_statement (fndecl, return_value, locus);
+	  ctx->add_statement (return_stmt);
+	}
     }
 }
 
@@ -1060,6 +1140,21 @@ HIRCompileBase::resolve_method_address (TyTy::FnType *fntype,
   rust_debug_loc (expr_locus, "resolve_method_address for %s and receiver %s",
 		  fntype->debug_str ().c_str (),
 		  receiver->debug_str ().c_str ());
+
+  TyTy::BaseType *act_receiver = receiver;
+  while (act_receiver->get_kind () == TyTy::TypeKind::REF)
+    {
+      auto ref = static_cast<TyTy::ReferenceType *> (act_receiver);
+      act_receiver = ref->get_base ();
+    }
+  if (act_receiver->get_kind () == TyTy::TypeKind::GENERATOR)
+    {
+      TyTy::GeneratorType *gen_tyty
+	= static_cast<TyTy::GeneratorType *> (act_receiver);
+      tree gen_fndecl = ctx->lookup_generator_decl (gen_tyty);
+      rust_assert (gen_fndecl != NULL_TREE && gen_fndecl != error_mark_node);
+      return build_fold_addr_expr_loc (expr_locus, gen_fndecl);
+    }
 
   DefId id = fntype->get_id ();
   rust_assert (id != UNKNOWN_DEFID);

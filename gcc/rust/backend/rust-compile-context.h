@@ -52,6 +52,14 @@ struct CustomDeriveInfo
   std::vector<std::string> attributes;
 };
 
+struct GeneratorInfo
+{
+  tree state_field_expr;
+  int curr_yield_count = 0;
+  TyTy::ADTType *generator_state_adt;
+  std::vector<tree> resume_labels;
+};
+
 class DropBuilder;
 
 class Context
@@ -170,6 +178,16 @@ public:
     mono_closure_fns[dId].emplace_back (ref, fn);
   }
 
+  void insert_generator_decl (const TyTy::GeneratorType *ref, tree fn)
+  {
+    auto dId = ref->get_def_id ();
+    auto it = generator_fns.find (dId);
+    if (it == generator_fns.end ())
+      generator_fns[dId] = {};
+
+    generator_fns[dId].emplace_back (ref, fn);
+  }
+
   tree lookup_closure_decl (const TyTy::ClosureType *ref)
   {
     auto dId = ref->get_def_id ();
@@ -180,6 +198,25 @@ public:
     for (auto &i : it->second)
       {
 	const TyTy::ClosureType *t = i.first;
+	tree fn = i.second;
+
+	if (ref->is_equal (*t))
+	  return fn;
+      }
+
+    return error_mark_node;
+  }
+
+  tree lookup_generator_decl (const TyTy::GeneratorType *ref)
+  {
+    auto dId = ref->get_def_id ();
+    auto it = generator_fns.find (dId);
+    if (it == generator_fns.end ())
+      return error_mark_node;
+
+    for (auto &i : it->second)
+      {
+	const TyTy::GeneratorType *t = i.first;
 	tree fn = i.second;
 
 	if (ref->is_equal (*t))
@@ -430,6 +467,16 @@ public:
   void insert_closure_binding (HirId id, tree expr);
   bool lookup_closure_binding (HirId id, tree *expr);
 
+  void push_generator_context (HirId id);
+  void pop_generator_context ();
+  void insert_generator_binding (HirId id, tree expr);
+  bool lookup_generator_binding (HirId id, tree *expr);
+
+  void push_generator_info (tree __state_expr, TyTy::ADTType *__state_adt);
+  GeneratorInfo &peek_generator_info ();
+  void pop_generator_info ();
+  bool needs_generator_state ();
+
   std::vector<tree> &get_type_decls () { return type_decls; }
   std::vector<::Bvariable *> &get_var_decls () { return var_decls; }
   std::vector<tree> &get_const_decls () { return const_decls; }
@@ -515,12 +562,15 @@ private:
   std::vector<tree> scope_stack;
   std::vector<::std::vector<DropCandidate>> block_drop_candidates;
   std::vector<::Bvariable *> loop_value_stack;
+  std::vector<GeneratorInfo> generator_info_stack;
   std::vector<tree> loop_begin_labels;
   std::vector<tree> loop_end_labels;
   std::map<DefId, std::vector<std::pair<const TyTy::BaseType *, tree>>>
     mono_fns;
   std::map<DefId, std::vector<std::pair<const TyTy::ClosureType *, tree>>>
     mono_closure_fns;
+  std::map<DefId, std::vector<std::pair<const TyTy::GeneratorType *, tree>>>
+    generator_fns;
   std::map<HirId, tree> implicit_pattern_bindings;
   std::map<hashval_t, tree> main_variants;
 
@@ -531,6 +581,10 @@ private:
   // closure bindings
   std::vector<HirId> closure_scope_bindings;
   std::map<HirId, std::map<HirId, tree>> closure_bindings;
+
+  // generator bindings
+  std::vector<HirId> generator_scope_bindings;
+  std::map<HirId, std::map<HirId, tree>> generator_bindings;
 
   // To GCC middle-end
   std::vector<tree> type_decls;

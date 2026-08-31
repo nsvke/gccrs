@@ -61,6 +61,7 @@ public:
   void visit (ProjectionType &) override { rust_unreachable (); }
   void visit (DynamicObjectType &) override { rust_unreachable (); }
   void visit (ClosureType &) override { rust_unreachable (); }
+  void visit (GeneratorType &) override { rust_unreachable (); }
   void visit (OpaqueType &) override { rust_unreachable (); }
   void visit (ConstParamType &) override { rust_unreachable (); }
   void visit (ConstValueType &) override { rust_unreachable (); }

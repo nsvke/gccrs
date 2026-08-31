@@ -339,6 +339,13 @@ protected: // Helpers to add BIR statements
       Statement::make_return (location));
   }
 
+  void push_yield (location_t location)
+  {
+    ctx.get_current_bb ().statements.push_back (
+      Statement::make_yield (location));
+    start_new_consecutive_bb ();
+  }
+
   PlaceId borrow_place (PlaceId place_id, TyTy::BaseType *ty,
 			location_t location)
   {

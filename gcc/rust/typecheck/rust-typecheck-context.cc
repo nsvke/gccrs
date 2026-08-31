@@ -189,6 +189,61 @@ TypeCheckContext::peek_context ()
   return return_type_stack.back ().first;
 }
 
+bool
+TypeCheckContext::have_generator_context () const
+{
+  return !yield_type_stack.empty ();
+}
+
+TyTy::BaseType *
+TypeCheckContext::peek_yield_type ()
+{
+  rust_assert (!yield_type_stack.empty ());
+  return yield_type_stack.back ().second;
+}
+
+void
+TypeCheckContext::push_yield_type (TypeCheckContextItem item,
+				   TyTy::BaseType *yield_type)
+{
+  yield_type_stack.emplace_back (std::move (item), yield_type);
+}
+
+void
+TypeCheckContext::pop_yield_type ()
+{
+  rust_assert (!yield_type_stack.empty ());
+  yield_type_stack.pop_back ();
+}
+
+TyTy::BaseType *
+TypeCheckContext::peek_resume_type ()
+{
+  rust_assert (!resume_type_stack.empty ());
+  return resume_type_stack.back ().second;
+}
+
+void
+TypeCheckContext::push_resume_type (TypeCheckContextItem item,
+				    TyTy::BaseType *resume_type)
+{
+  resume_type_stack.emplace_back (std::move (item), resume_type);
+}
+
+void
+TypeCheckContext::pop_resume_type ()
+{
+  rust_assert (!resume_type_stack.empty ());
+  resume_type_stack.pop_back ();
+}
+
+TypeCheckContextItem
+TypeCheckContext::peek_generator_context ()
+{
+  rust_assert (!yield_type_stack.empty ());
+  return yield_type_stack.back ().first;
+}
+
 void
 TypeCheckContext::push_expected_type (TyTy::BaseType *expected)
 {

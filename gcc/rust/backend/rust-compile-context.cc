@@ -192,5 +192,75 @@ Context::lookup_closure_binding (HirId id, tree *expr)
   return true;
 }
 
+void
+Context::push_generator_context (HirId id)
+{
+  auto it = generator_bindings.find (id);
+  rust_assert (it == generator_bindings.end ());
+
+  generator_bindings.insert ({id, {}});
+  generator_scope_bindings.push_back (id);
+}
+
+void
+Context::pop_generator_context ()
+{
+  rust_assert (!generator_scope_bindings.empty ());
+
+  HirId ref = generator_scope_bindings.back ();
+  generator_scope_bindings.pop_back ();
+  generator_bindings.erase (ref);
+}
+
+void
+Context::insert_generator_binding (HirId id, tree expr)
+{
+  rust_assert (!generator_scope_bindings.empty ());
+
+  HirId ref = generator_scope_bindings.back ();
+  generator_bindings[ref].insert ({id, expr});
+}
+
+bool
+Context::lookup_generator_binding (HirId id, tree *expr)
+{
+  if (generator_scope_bindings.empty ())
+    return false;
+
+  HirId ref = generator_scope_bindings.back ();
+  auto it = generator_bindings.find (ref);
+  rust_assert (it != generator_bindings.end ());
+
+  auto iy = it->second.find (id);
+  if (iy == it->second.end ())
+    return false;
+
+  *expr = iy->second;
+  return true;
+}
+
+void
+Context::push_generator_info (tree __state_expr, TyTy::ADTType *__state_adt)
+{
+  generator_info_stack.push_back ({__state_expr, 0, __state_adt, {}});
+}
+GeneratorInfo &
+Context::peek_generator_info ()
+{
+  rust_assert (!generator_info_stack.empty ());
+  return generator_info_stack.back ();
+}
+void
+Context::pop_generator_info ()
+{
+  rust_assert (!generator_info_stack.empty ());
+  generator_info_stack.pop_back ();
+}
+bool
+Context::needs_generator_state ()
+{
+  return !generator_info_stack.empty ();
+}
+
 } // namespace Compile
 } // namespace Rust

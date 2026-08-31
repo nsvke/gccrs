@@ -493,6 +493,7 @@ private:
       case TyTy::ADT:	     // TODO: check trait
       case TyTy::PROJECTION: // TODO: DUNNO
       case TyTy::CLOSURE:    // TODO: DUNNO
+      case TyTy::GENERATOR:  //
       case TyTy::DYNAMIC:    // TODO: dunno
       case TyTy::CONST:
       case TyTy::OPAQUE:

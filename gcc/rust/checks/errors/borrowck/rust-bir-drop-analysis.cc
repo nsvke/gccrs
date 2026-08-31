@@ -166,6 +166,7 @@ update_state_for_statement (Function &function, Statement &statement,
 
     case Statement::Kind::SWITCH:
     case Statement::Kind::RETURN:
+    case Statement::Kind::YIELD:
     case Statement::Kind::GOTO:
     case Statement::Kind::USER_TYPE_ASCRIPTION:
     case Statement::Kind::FAKE_READ:

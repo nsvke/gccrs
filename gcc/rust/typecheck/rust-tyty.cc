@@ -112,6 +112,9 @@ TypeKindFormat::to_string (TypeKind kind)
     case TypeKind::CLOSURE:
       return "Closure";
 
+    case TypeKind::GENERATOR:
+      return "Generator";
+
     case TypeKind::OPAQUE:
       return "Opaque";
 
@@ -216,6 +219,7 @@ BaseType::is_unit () const
     case POINTER:
     case REF:
     case CLOSURE:
+    case GENERATOR:
     case INFER:
     case BOOL:
     case CHAR:
@@ -898,6 +902,14 @@ BaseType::contains_infer () const
 	return infer;
       return closure->get_result_type ().contains_infer ();
     }
+  else if (auto gen = x->try_as<const GeneratorType> ())
+    {
+      // TODO: do we need to check resume, yield and return tys
+      auto infer = (gen->get_parameters ().contains_infer ());
+      if (infer)
+	return infer;
+      return gen->get_result_type ().contains_infer ();
+    }
   else if (x->is<InferType> ())
     {
       return x;
@@ -1015,6 +1027,13 @@ BaseType::is_concrete () const
 	return false;
       return closure->get_result_type ().is_concrete ();
     }
+  else if (auto gen = x->try_as<const GeneratorType> ())
+    {
+      // TODO: do we need to check resume, yield, return tys
+      if (gen->get_parameters ().is_concrete ())
+	return false;
+      return gen->get_result_type ().is_concrete ();
+    }
   else if (x->is<InferType> () || x->is<BoolType> () || x->is<CharType> ()
 	   || x->is<IntType> () || x->is<UintType> () || x->is<FloatType> ()
 	   || x->is<USizeType> () || x->is<ISizeType> () || x->is<NeverType> ()
@@ -1040,6 +1059,7 @@ BaseType::is_zero_sized () const
     case POINTER:
     case REF:
     case CLOSURE:
+    case GENERATOR:
     case INFER:
     case BOOL:
     case CHAR:
@@ -1141,6 +1161,14 @@ BaseType::has_substitutions_defined () const
 	return ref.has_substitutions ();
       }
       break;
+
+    case GENERATOR:
+      {
+	const GeneratorType &gen = *static_cast<const GeneratorType *> (x);
+	const SubstitutionRef &ref = static_cast<const SubstitutionRef &> (gen);
+	return ref.has_substitutions ();
+      }
+      break;
     }
 
   return false;
@@ -1208,6 +1236,14 @@ BaseType::needs_generic_substitutions () const
 	return ref.needs_substitution ();
       }
       break;
+
+    case GENERATOR:
+      {
+	const GeneratorType &gen = *static_cast<const GeneratorType *> (x);
+	const SubstitutionRef &ref = static_cast<const SubstitutionRef &> (gen);
+	return ref.needs_substitution ();
+      }
+      break;
     }
 
   return false;
@@ -1248,6 +1284,14 @@ BaseType::get_subst_argument_mappings () const
       {
 	const auto &closure = *static_cast<const ClosureType *> (x);
 	const auto &ref = static_cast<const SubstitutionRef &> (closure);
+	return ref.get_substitution_arguments ();
+      }
+      break;
+
+    case GENERATOR:
+      {
+	const auto &gen = *static_cast<const GeneratorType *> (x);
+	const auto &ref = static_cast<const SubstitutionRef &> (gen);
 	return ref.get_substitution_arguments ();
       }
       break;
@@ -1894,7 +1938,7 @@ VariantDef::clone () const
 
   auto &&discriminant_opt = has_discriminant ()
 			      ? tl::optional<std::unique_ptr<HIR::Expr>> (
-				get_discriminant ().clone_expr ())
+				  get_discriminant ().clone_expr ())
 			      : tl::nullopt;
 
   return new VariantDef (id, defid, identifier, ident, type,
@@ -1910,7 +1954,7 @@ VariantDef::monomorphized_clone () const
 
   auto discriminant_opt = has_discriminant ()
 			    ? tl::optional<std::unique_ptr<HIR::Expr>> (
-			      get_discriminant ().clone_expr ())
+				get_discriminant ().clone_expr ())
 			    : tl::nullopt;
 
   return new VariantDef (id, defid, identifier, ident, type,
@@ -2715,6 +2759,108 @@ ClosureType::handle_substitions (SubstitutionArgumentMappings &mappings)
 {
   rust_unreachable ();
   return nullptr;
+}
+
+void
+GeneratorType::accept_vis (TyVisitor &vis)
+{
+  vis.visit (*this);
+}
+
+void
+GeneratorType::accept_vis (TyConstVisitor &vis) const
+{
+  vis.visit (*this);
+}
+
+std::string
+GeneratorType::as_string () const
+{
+  std::string params_buf = parameters->as_string ();
+  // TODO: maybe we need yield type too
+  return "gen |" + params_buf + "| {" + result_type.get_tyty ()->as_string ()
+	 + "}";
+}
+
+bool
+GeneratorType::is_equal (const BaseType &other) const
+{
+  if (other.get_kind () != TypeKind::GENERATOR)
+    return false;
+
+  const GeneratorType &other2 = static_cast<const GeneratorType &> (other);
+  if (get_def_id () != other2.get_def_id ())
+    return false;
+
+  if (!get_parameters ().is_equal (other2.get_parameters ()))
+    return false;
+
+  if (get_movability () != other2.get_movability ())
+    return false;
+
+  return get_result_type ().is_equal (other2.get_result_type ());
+}
+
+BaseType *
+GeneratorType::clone () const
+{
+  return new GeneratorType (get_ref (), get_ty_ref (), ident, id,
+			    (TyTy::TupleType *) parameters->clone (),
+			    result_type, yield_type, capture_clause, movability,
+			    clone_substs (), captures, get_combined_refs (),
+			    specified_bounds);
+}
+
+GeneratorType *
+GeneratorType::handle_substitions (SubstitutionArgumentMappings &subst_mappings)
+{
+  auto &mappings = Analysis::Mappings::get ();
+  GeneratorType *gen = static_cast<GeneratorType *> (clone ());
+  gen->set_ty_ref (mappings.get_next_hir_id ());
+  gen->used_arguments = subst_mappings;
+
+  for (auto &sub : gen->get_substs ())
+    {
+      SubstitutionArg arg = SubstitutionArg::error ();
+      bool ok
+	= subst_mappings.get_argument_for_symbol (sub.get_param_ty (), &arg);
+      if (ok)
+	sub.fill_param_ty (subst_mappings, subst_mappings.get_locus ());
+    }
+
+  if (gen->parameters != nullptr)
+    gen->parameters = static_cast<TyTy::TupleType *> (
+      gen->parameters->handle_substitions (subst_mappings));
+
+  auto res_ty = gen->result_type.get_tyty ();
+  if (res_ty->needs_generic_substitutions () || !res_ty->is_concrete ())
+    {
+      BaseType *concrete
+	= Resolver::SubstMapperInternal::Resolve (res_ty, subst_mappings);
+      if (concrete != nullptr && concrete->get_kind () != TyTy::TypeKind::ERROR)
+	{
+	  auto new_res = concrete->clone ();
+	  new_res->set_ref (res_ty->get_ref ());
+	  gen->result_type = TyVar (new_res->get_ref ());
+	}
+    }
+
+  auto yield_ty_base = gen->yield_type.get_tyty ();
+  if (yield_ty_base->needs_generic_substitutions ()
+      || !yield_ty_base->is_concrete ())
+    {
+      BaseType *concrete
+	= Resolver::SubstMapperInternal::Resolve (yield_ty_base,
+						  subst_mappings);
+      if (concrete != nullptr && concrete->get_kind () != TyTy::TypeKind::ERROR)
+	{
+	  auto new_yield = concrete->clone ();
+	  new_yield->set_ref (yield_ty_base->get_ref ());
+	  gen->yield_type = TyVar (new_yield->get_ref ());
+	}
+    }
+
+  return gen;
 }
 
 void

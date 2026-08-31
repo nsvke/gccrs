@@ -307,8 +307,36 @@ CompileExpr::visit (HIR::ReturnExpr &expr)
 void
 CompileExpr::visit (HIR::YieldExpr &expr)
 {
-  rust_sorry_at (expr.get_locus (), "yield expr backend is not implemented");
-  rust_assert (false);
+  auto &info = ctx->peek_generator_info ();
+  tree fndecl = ctx->peek_fn ().fndecl;
+
+  tree yielded_expr = CompileExpr::Compile (expr.get_expr (), ctx);
+
+  tree yielded_state_tree
+    = build_generator_state (false, yielded_expr, expr.get_locus ());
+
+  info.curr_yield_count += 1;
+  tree state_val
+    = build_int_cst (TREE_TYPE (info.state_field_expr), info.curr_yield_count);
+  tree state_assign
+    = Backend::assignment_statement (info.state_field_expr, state_val,
+				     expr.get_locus ());
+
+  ctx->add_statement (state_assign);
+
+  tree return_stmt
+    = Backend::return_statement (fndecl, yielded_state_tree, expr.get_locus ());
+  ctx->add_statement (return_stmt);
+
+  std::string label_name = "resume_" + std::to_string (info.curr_yield_count);
+  tree resume_label = Backend::label (fndecl, label_name, expr.get_locus ());
+  info.resume_labels.push_back (resume_label);
+
+  tree label_def = Backend::label_definition_statement (resume_label);
+  ctx->add_statement (label_def);
+
+  // FIXME: use Resume parameter instead of ()
+  translated = unit_expression (expr.get_locus ());
 }
 
 void
@@ -2996,39 +3024,383 @@ CompileExpr::visit (HIR::ClosureExpr &expr)
 			"did not resolve type for this ClosureExpr");
       return;
     }
-  rust_assert (closure_expr_ty->get_kind () == TyTy::TypeKind::CLOSURE);
-  TyTy::ClosureType *closure_tyty
-    = static_cast<TyTy::ClosureType *> (closure_expr_ty);
-  tree compiled_closure_tyty = TyTyResolveCompile::compile (ctx, closure_tyty);
 
-  // generate closure function
-  generate_closure_function (expr, *closure_tyty, compiled_closure_tyty);
-
-  // lets ignore state capture for now we need to instantiate the struct anyway
-  // then generate the function
-  std::vector<tree> vals;
-  for (const auto &capture : closure_tyty->get_captures ())
+  if (closure_expr_ty->get_kind () == TyTy::TypeKind::CLOSURE)
     {
-      // lookup the HirId
-      if (auto hid = ctx->get_mappings ().lookup_node_to_hir (capture))
+      TyTy::ClosureType *closure_tyty
+	= static_cast<TyTy::ClosureType *> (closure_expr_ty);
+      tree compiled_closure_tyty
+	= TyTyResolveCompile::compile (ctx, closure_tyty);
+
+      // generate closure function
+      generate_closure_function (expr, *closure_tyty, compiled_closure_tyty);
+
+      // lets ignore state capture for now we need to instantiate the struct
+      // anyway then generate the function
+      std::vector<tree> vals;
+      for (const auto &capture : closure_tyty->get_captures ())
 	{
-	  // lookup the var decl
+	  // lookup the HirId
+	  if (auto hid = ctx->get_mappings ().lookup_node_to_hir (capture))
+	    {
+	      // lookup the var decl
+	      Bvariable *var = nullptr;
+	      bool found = ctx->lookup_var_decl (*hid, &var);
+	      rust_assert (found);
+
+	      // FIXME
+	      // this should bes based on the closure move-ability
+	      tree var_expr = var->get_tree (expr.get_locus ());
+	      tree val = address_expression (var_expr, expr.get_locus ());
+	      vals.push_back (val);
+	    }
+	  else
+	    rust_unreachable ();
+	}
+
+      translated
+	= Backend::constructor_expression (compiled_closure_tyty, false, vals,
+					   -1, expr.get_locus ());
+    }
+  else if (closure_expr_ty->get_kind () == TyTy::TypeKind::GENERATOR)
+    {
+      TyTy::GeneratorType *gen_tyty
+	= static_cast<TyTy::GeneratorType *> (closure_expr_ty);
+      tree compiled_gen_tyty = TyTyResolveCompile::compile (ctx, gen_tyty);
+
+      generate_generator_function (expr, *gen_tyty, compiled_gen_tyty);
+
+      std::vector<tree> vals;
+      for (const auto &capture : gen_tyty->get_captures ())
+	{
+	  auto hid = ctx->get_mappings ().lookup_node_to_hir (capture).value ();
 	  Bvariable *var = nullptr;
-	  bool found = ctx->lookup_var_decl (*hid, &var);
+	  bool found = ctx->lookup_var_decl (hid, &var);
 	  rust_assert (found);
 
-	  // FIXME
-	  // this should bes based on the closure move-ability
 	  tree var_expr = var->get_tree (expr.get_locus ());
-	  tree val = address_expression (var_expr, expr.get_locus ());
+	  tree val = expr.get_capture_clause () == AST::CaptureBy::Value
+		       ? var_expr
+		       : address_expression (var_expr, expr.get_locus ());
 	  vals.push_back (val);
 	}
-      else
-	rust_unreachable ();
+
+      translated
+	= Backend::constructor_expression (compiled_gen_tyty, false, vals, -1,
+					   expr.get_locus ());
+    }
+  else
+    {
+      rust_unreachable ();
+    }
+}
+
+tree
+CompileExpr::generate_generator_function (HIR::ClosureExpr &expr,
+					  TyTy::GeneratorType &gen_tyty,
+					  tree compiled_gen_tyty)
+{
+  TyTy::FnType *fn_tyty = nullptr;
+  tree compiled_fn_type
+    = generate_generator_fntype (expr, gen_tyty, compiled_gen_tyty, &fn_tyty);
+  rust_assert (compiled_fn_type != error_mark_node);
+  if (compiled_fn_type == error_mark_node)
+    return error_mark_node;
+
+  const Resolver::CanonicalPath &parent_canonical_path
+    = gen_tyty.get_ident ().path;
+
+  tl::optional<NodeId> nid = ctx->get_mappings ().lookup_hir_to_node (
+    expr.get_mappings ().get_hirid ());
+  rust_assert (nid.has_value ());
+  auto node_id = nid.value ();
+
+  Resolver::CanonicalPath path = parent_canonical_path.append (
+    Resolver::CanonicalPath::new_seg (node_id, "{{generator}}"));
+
+  std::string ir_symbol_name = path.get ();
+  std::string asm_name = ctx->mangle_item (&gen_tyty, path);
+
+  unsigned int flags = 0;
+  tree fndecl = Backend::function (compiled_fn_type, ir_symbol_name, asm_name,
+				   flags, expr.get_locus ());
+
+  ctx->insert_function_decl (fn_tyty, fndecl);
+  ctx->insert_generator_decl (&gen_tyty, fndecl);
+
+  std::vector<Bvariable *> param_vars;
+
+  tree self_ptr_type = build_pointer_type (compiled_gen_tyty);
+  Bvariable *self_param
+    = Backend::parameter_variable (fndecl, "$generator", self_ptr_type,
+				   expr.get_locus ());
+  DECL_ARTIFICIAL (self_param->get_decl ()) = 1;
+  param_vars.push_back (self_param);
+
+  ctx->push_generator_context (expr.get_mappings ().get_hirid ());
+
+  tree self_tree = self_param->get_tree (expr.get_locus ());
+  tree deref_self = indirect_expression (self_tree, expr.get_locus ());
+
+  tree __state_expr
+    = Backend::struct_field_expression (deref_self, 0, expr.get_locus ());
+
+  DefId gen_state_defid = ctx->get_mappings ()
+			    .lookup_lang_item (LangItem::Kind::GENERATOR_STATE)
+			    .value ();
+  HIR::Item *gen_state_item
+    = ctx->get_mappings ().lookup_defid (gen_state_defid).value ();
+  rust_assert (gen_state_item != nullptr);
+  rust_assert (gen_state_item->get_item_kind () == HIR::Item::ItemKind::Enum);
+  HirId gen_state_hirid = gen_state_item->get_mappings ().get_hirid ();
+
+  TyTy::BaseType *gen_state_raw = nullptr;
+  bool found = ctx->get_tyctx ()->lookup_type (gen_state_hirid, &gen_state_raw);
+  rust_assert (found && gen_state_raw->get_kind () == TyTy::TypeKind::ADT);
+
+  TyTy::ADTType *gen_state_adt = static_cast<TyTy::ADTType *> (gen_state_raw);
+  rust_assert (gen_state_adt->get_substs ().size () == 2);
+
+  const TyTy::SubstitutionParamMapping *param_y
+    = &gen_state_adt->get_substs ().at (0);
+  const TyTy::SubstitutionParamMapping *param_r
+    = &gen_state_adt->get_substs ().at (1);
+
+  std::vector<TyTy::SubstitutionArg> subst_args;
+
+  subst_args.push_back (
+    TyTy::SubstitutionArg (param_y, gen_tyty.get_yield_type ().clone ()));
+  subst_args.push_back (
+    TyTy::SubstitutionArg (param_r, gen_tyty.get_result_type ().clone ()));
+
+  std::map<std::string, TyTy::BaseType *> empty_bindings;
+  TyTy::RegionParamList empty_regions (0);
+
+  TyTy::SubstitutionArgumentMappings mappings (std::move (subst_args),
+					       empty_bindings, empty_regions,
+					       expr.get_locus ());
+
+  TyTy::BaseType *tyret = gen_state_adt->handle_substitions (mappings);
+
+  ctx->push_generator_info (__state_expr, static_cast<TyTy::ADTType *> (tyret));
+
+  size_t idx = 1;
+  for (const auto &capture : gen_tyty.get_captures ())
+    {
+      auto hid = ctx->get_mappings ().lookup_node_to_hir (capture).value ();
+      tree binding
+	= Backend::struct_field_expression (deref_self, idx, expr.get_locus ());
+
+      tree indirection = indirect_expression (binding, expr.get_locus ());
+      ctx->insert_generator_binding (hid, indirection);
+
+      idx++;
     }
 
-  translated = Backend::constructor_expression (compiled_closure_tyty, false,
-						vals, -1, expr.get_locus ());
+  tree args_type
+    = TyTyResolveCompile::compile (ctx, &gen_tyty.get_parameters ());
+  Bvariable *args_param
+    = Backend::parameter_variable (fndecl, "args", args_type,
+				   expr.get_locus ());
+  param_vars.push_back (args_param);
+
+  tree args_param_expr = args_param->get_tree (expr.get_locus ());
+  size_t i = 0;
+  for (auto &gen_param : expr.get_params ())
+    {
+      tree compiled_param_var
+	= Backend::struct_field_expression (args_param_expr, i,
+					    gen_param.get_locus ());
+      CompilePatternBindings::Compile (gen_param.get_pattern (),
+				       compiled_param_var, ctx);
+      i++;
+    }
+  if (!Backend::function_set_parameters (fndecl, param_vars))
+    {
+      ctx->pop_generator_context ();
+      ctx->pop_generator_info ();
+      return error_mark_node;
+    }
+
+  HIR::Expr &function_body = expr.get_expr ();
+  bool is_block_expr
+    = function_body.get_expression_type () == HIR::Expr::ExprType::Block;
+  if (is_block_expr)
+    {
+      auto body_mappings = function_body.get_mappings ();
+      auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
+
+      auto candidate
+	= nr_ctx.get_underlying ().values.to_rib (body_mappings.get_nodeid ());
+
+      rust_assert (candidate.has_value ());
+    }
+
+  tree enclosing_scope = NULL_TREE;
+  location_t start_location = function_body.get_locus ();
+  location_t end_location = function_body.get_locus ();
+
+  if (is_block_expr)
+    {
+      auto &body = static_cast<HIR::BlockExpr &> (function_body);
+      start_location = body.get_locus ();
+      end_location = body.get_end_locus ();
+    }
+
+  tree code_block = Backend::block (fndecl, enclosing_scope, {}, start_location,
+				    end_location);
+  ctx->push_block (code_block);
+
+  Bvariable *return_address = nullptr;
+
+  tree return_type = TyTyResolveCompile::compile (ctx, tyret);
+  bool address_is_token = false;
+  tree ret_var_stmt = NULL_TREE;
+
+  return_address
+    = Backend::temporary_variable (fndecl, code_block, return_type, NULL,
+				   address_is_token, expr.get_locus (),
+				   &ret_var_stmt);
+  ctx->add_statement (ret_var_stmt);
+  ctx->push_fn (fndecl, return_address, tyret);
+
+  // generator state dispatcher
+  tree inner_block = Backend::block (fndecl, enclosing_scope, {},
+				     start_location, end_location);
+  ctx->push_block (inner_block);
+
+  auto &info = ctx->peek_generator_info ();
+
+  tree resume_0_label = Backend::label (fndecl, "resume_0", start_location);
+  info.resume_labels.push_back (resume_0_label);
+  ctx->add_statement (Backend::label_definition_statement (resume_0_label));
+
+  if (is_block_expr)
+    {
+      auto &body = static_cast<HIR::BlockExpr &> (function_body);
+      compile_function_body (fndecl, body, tyret);
+    }
+  else
+    {
+      rust_unreachable ();
+    }
+
+  tree cleanup = CompileDrop (ctx).build_current_scope_drop_cleanup ();
+  tree inner_bind
+    = ctx->pop_block_with_cleanup (cleanup, function_body.get_locus ());
+
+  tree state_type = TREE_TYPE (info.state_field_expr);
+
+  tree trap_decl = builtin_decl_explicit (BUILT_IN_TRAP);
+  tree routing_stmt = build_call_expr_loc (expr.get_locus (), trap_decl, 0);
+
+  for (int i = info.resume_labels.size () - 1; i >= 0; i--)
+    {
+      tree label = info.resume_labels[i];
+      tree goto_stmt
+	= build1_loc (expr.get_locus (), GOTO_EXPR, void_type_node, label);
+      tree state_val = build_int_cst (state_type, i);
+      tree cond
+	= fold_build2_loc (expr.get_locus (), EQ_EXPR, boolean_type_node,
+			   info.state_field_expr, state_val);
+
+      routing_stmt = Backend::if_statement (fndecl, cond, goto_stmt,
+					    routing_stmt, expr.get_locus ());
+    }
+
+  ctx->add_statement (routing_stmt);
+  ctx->add_statement (inner_bind);
+
+  tree final_bind = ctx->pop_block_with_cleanup (NULL_TREE, end_location);
+  gcc_assert (TREE_CODE (final_bind) == BIND_EXPR);
+  DECL_SAVED_TREE (fndecl) = final_bind;
+
+  ctx->pop_generator_context ();
+  ctx->pop_generator_info ();
+  ctx->pop_fn ();
+  ctx->push_function (fndecl);
+
+  return fndecl;
+}
+
+tree
+CompileExpr::generate_generator_fntype (HIR::ClosureExpr &expr,
+					const TyTy::GeneratorType &gen_tyty,
+					tree compiled_gen_tyty,
+					TyTy::FnType **fn_tyty)
+{
+  rust_assert (gen_tyty.num_specified_bounds () == 1);
+  const TyTy::TypeBoundPredicate &predicate
+    = *gen_tyty.get_specified_bounds ().begin ();
+
+  TyTy::TypeBoundPredicateItem item = TyTy::TypeBoundPredicateItem::error ();
+  if (predicate.get_name ().compare ("Generator") == 0
+      || predicate.get_name ().compare ("Coroutine") == 0)
+    {
+      item = predicate.lookup_associated_item ("resume").value ();
+    }
+  else
+    {
+      rust_unreachable ();
+      return error_mark_node;
+    }
+
+  rust_assert (!item.is_error ());
+
+  TyTy::BaseType *item_tyty = item.get_tyty_for_receiver (&gen_tyty);
+  rust_assert (item_tyty->get_kind () == TyTy::TypeKind::FNDEF);
+
+  *fn_tyty = static_cast<TyTy::FnType *> (item_tyty->monomorphized_clone ());
+
+  DefId gen_state_defid = ctx->get_mappings ()
+			    .lookup_lang_item (LangItem::Kind::GENERATOR_STATE)
+			    .value ();
+  HIR::Item *gen_state_item
+    = ctx->get_mappings ().lookup_defid (gen_state_defid).value ();
+  HirId gen_state_hirid = gen_state_item->get_mappings ().get_hirid ();
+
+  TyTy::BaseType *gen_state_raw = nullptr;
+  bool found = ctx->get_tyctx ()->lookup_type (gen_state_hirid, &gen_state_raw);
+  rust_assert (found && gen_state_raw->get_kind () == TyTy::TypeKind::ADT);
+
+  TyTy::ADTType *gen_state_adt = static_cast<TyTy::ADTType *> (gen_state_raw);
+  rust_assert (gen_state_adt->get_substs ().size () == 2);
+
+  const TyTy::SubstitutionParamMapping *param_y
+    = &gen_state_adt->get_substs ().at (0);
+  const TyTy::SubstitutionParamMapping *param_r
+    = &gen_state_adt->get_substs ().at (1);
+
+  std::vector<TyTy::SubstitutionArg> subst_args;
+
+  subst_args.push_back (
+    TyTy::SubstitutionArg (param_y, gen_tyty.get_yield_type ().clone ()));
+  subst_args.push_back (
+    TyTy::SubstitutionArg (param_r, gen_tyty.get_result_type ().clone ()));
+
+  std::map<std::string, TyTy::BaseType *> empty_bindings;
+  TyTy::RegionParamList empty_regions (0);
+
+  TyTy::SubstitutionArgumentMappings mappings (std::move (subst_args),
+					       empty_bindings, empty_regions,
+					       expr.get_locus ());
+
+  TyTy::BaseType *concrete_gen_state
+    = gen_state_adt->handle_substitions (mappings);
+
+  tree compiled_return_type
+    = TyTyResolveCompile::compile (ctx, concrete_gen_state);
+
+  tree compiled_self_type = build_pointer_type (compiled_gen_tyty);
+
+  tree compiled_resume_type
+    = TyTyResolveCompile::compile (ctx, &gen_tyty.get_parameters ());
+
+  tree compiled_fn_type
+    = build_function_type_list (compiled_return_type, compiled_self_type,
+				compiled_resume_type, NULL_TREE);
+
+  return build_pointer_type (compiled_fn_type);
 }
 
 tree

@@ -225,6 +225,16 @@ public:
 			 TyTy::BaseType *return_type);
   void pop_return_type ();
 
+  bool have_generator_context () const;
+  TyTy::BaseType *peek_yield_type ();
+  TypeCheckContextItem peek_generator_context ();
+  void push_yield_type (TypeCheckContextItem item, TyTy::BaseType *yield_type);
+  void pop_yield_type ();
+  void push_resume_type (TypeCheckContextItem item,
+			 TyTy::BaseType *resume_type);
+  TyTy::BaseType *peek_resume_type ();
+  void pop_resume_type ();
+
   void push_expected_type (TyTy::BaseType *expected);
   void pop_expected_type ();
   TyTy::BaseType *peek_expected_type () const;
@@ -338,6 +348,10 @@ private:
   std::vector<std::unique_ptr<TyTy::BaseType>> builtins;
   std::vector<std::pair<TypeCheckContextItem, TyTy::BaseType *>>
     return_type_stack;
+  std::vector<std::pair<TypeCheckContextItem, TyTy::BaseType *>>
+    yield_type_stack;
+  std::vector<std::pair<TypeCheckContextItem, TyTy::BaseType *>>
+    resume_type_stack;
   std::vector<TyTy::BaseType *> expected_type_stack;
   std::vector<TyTy::BaseType *> loop_type_stack;
   StackedContexts<TypeCheckBlockContextItem> block_stack;

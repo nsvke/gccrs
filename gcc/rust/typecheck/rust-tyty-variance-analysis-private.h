@@ -106,6 +106,7 @@ public:
   void visit (NeverType &type) override {}
 
   void visit (ClosureType &type) override {}
+  void visit (GeneratorType &type) override {}
   void visit (FnType &type) override
   {
     for (auto &region : type.get_used_arguments ().get_regions ())

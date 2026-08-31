@@ -159,6 +159,15 @@ protected:
 				tree compiled_closure_tyty,
 				TyTy::FnType **fn_tyty);
 
+  tree generate_generator_function (HIR::ClosureExpr &expr,
+				    TyTy::GeneratorType &gen_tyty,
+				    tree compiled_closure_tyty);
+
+  tree generate_generator_fntype (HIR::ClosureExpr &expr,
+				  const TyTy::GeneratorType &gen_tyty,
+				  tree compiled_gen_tyty,
+				  TyTy::FnType **fn_tyty);
+
   bool generate_possible_fn_trait_call (HIR::CallExpr &expr, tree receiver,
 					tree *result);
 

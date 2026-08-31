@@ -137,6 +137,9 @@ private:
   validate_arithmetic_type (const TyTy::BaseType *tyty,
 			    HIR::ArithmeticOrLogicalExpr::ExprType expr_type);
 
+  void mk_closure (HIR::ClosureExpr &epxr, HirId implicit_args_id);
+  void mk_generator (HIR::ClosureExpr &expr, HirId implicit_args_id);
+
   /* The return value of TypeCheckExpr::Resolve */
   TyTy::BaseType *infered;
 };
